@@ -7,12 +7,13 @@ package io.github.aloubyansky.pqc.maven.core;
  * and provides methods to determine overall verification status under different
  * security policies:
  * <ul>
- *   <li><b>Strict mode</b>: Both classic and PQC signatures must pass</li>
- *   <li><b>Transitional mode</b>: Only the classic signature must pass (PQC optional)</li>
+ * <li><b>Strict mode</b>: Both classic and PQC signatures must pass</li>
+ * <li><b>Transitional mode</b>: Only the classic signature must pass (PQC optional)</li>
  * </ul>
- * </p>
+ *
  * <p>
  * Example usage:
+ *
  * <pre>{@code
  * VerificationReport report = verifier.verify(artifactFile, signatureFile);
  *
@@ -31,33 +32,32 @@ package io.github.aloubyansky.pqc.maven.core;
  * @param classicKeyId the GPG key ID that signed the artifact, or null if unavailable
  * @param pqcResult the result of PQC signature verification
  * @param pqcAlgorithm the PQC algorithm used (e.g., "ML-DSA-65+Ed25519"), or null if
- *                     signature not present
+ *        signature not present
  * @param pqcKeyFingerprint the PQC key fingerprint, or null if unavailable
  *
  * @see HybridVerifier
  * @see VerificationResult
  */
 public record VerificationReport(
-    VerificationResult classicResult,
-    String classicKeyId,
-    VerificationResult pqcResult,
-    String pqcAlgorithm,
-    String pqcKeyFingerprint
-) {
+        VerificationResult classicResult,
+        String classicKeyId,
+        VerificationResult pqcResult,
+        String pqcAlgorithm,
+        String pqcKeyFingerprint) {
 
     /**
      * Determines if verification passes under strict security policy.
      * <p>
      * Strict mode requires both classic and PQC signatures to be present and valid.
      * This provides quantum-resistant security by ensuring both signature types pass.
-     * </p>
+     *
      *
      * @return true if both {@link #classicResult} and {@link #pqcResult} are
      *         {@link VerificationResult#PASS}, false otherwise
      */
     public boolean isStrictPass() {
         return classicResult == VerificationResult.PASS
-            && pqcResult == VerificationResult.PASS;
+                && pqcResult == VerificationResult.PASS;
     }
 
     /**
@@ -66,7 +66,7 @@ public record VerificationReport(
      * Transitional mode requires only the classic GPG signature to be valid. This
      * allows for gradual migration to PQC signatures while maintaining backward
      * compatibility with existing classic-only signatures.
-     * </p>
+     *
      *
      * @return true if {@link #classicResult} is {@link VerificationResult#PASS},
      *         false otherwise (regardless of PQC result)
@@ -80,13 +80,14 @@ public record VerificationReport(
      * <p>
      * The output includes:
      * <ul>
-     *   <li>Classic (GPG) verification result with optional key ID</li>
-     *   <li>PQC verification result with algorithm and optional fingerprint</li>
-     *   <li>Overall assessment based on both results</li>
+     * <li>Classic (GPG) verification result with optional key ID</li>
+     * <li>PQC verification result with algorithm and optional fingerprint</li>
+     * <li>Overall assessment based on both results</li>
      * </ul>
-     * </p>
+     *
      * <p>
      * Example output:
+     *
      * <pre>
      * Signature Verification Report:
      *   Classic (GPG):           PASS    [key: 0xABCD1234]
@@ -110,9 +111,9 @@ public record VerificationReport(
      * <p>
      * The line includes the result status and optionally the key ID if available.
      * The result is left-padded to align with the PQC line.
-     * </p>
      *
-     * @return a formatted string like "  Classic (GPG):           PASS    [key: 0xABCD1234]"
+     *
+     * @return a formatted string like " Classic (GPG): PASS [key: 0xABCD1234]"
      */
     private String formatClassicLine() {
         StringBuilder sb = new StringBuilder();
@@ -132,9 +133,9 @@ public record VerificationReport(
      * The line includes the algorithm name (or "unknown" if not present), the
      * result status, and optionally the key fingerprint. Special handling for
      * {@link VerificationResult#NOT_PRESENT} displays a user-friendly message.
-     * </p>
      *
-     * @return a formatted string like "  PQC (ML-DSA-65+Ed25519): PASS    [key: abc123]"
+     *
+     * @return a formatted string like " PQC (ML-DSA-65+Ed25519): PASS [key: abc123]"
      */
     private String formatPqcLine() {
         StringBuilder sb = new StringBuilder();
@@ -165,13 +166,13 @@ public record VerificationReport(
      * <p>
      * The assessment describes the combined security status:
      * <ul>
-     *   <li>Both PASS: "PASS (both signatures valid)"</li>
-     *   <li>Classic PASS, PQC not PASS: "TRANSITIONAL PASS (classic valid, PQC...)"</li>
-     *   <li>Classic FAIL: "FAIL (classic signature invalid)"</li>
+     * <li>Both PASS: "PASS (both signatures valid)"</li>
+     * <li>Classic PASS, PQC not PASS: "TRANSITIONAL PASS (classic valid, PQC...)"</li>
+     * <li>Classic FAIL: "FAIL (classic signature invalid)"</li>
      * </ul>
-     * </p>
      *
-     * @return a formatted string like "  Overall: PASS (both signatures valid)"
+     *
+     * @return a formatted string like " Overall: PASS (both signatures valid)"
      */
     private String formatOverallLine() {
         StringBuilder sb = new StringBuilder();

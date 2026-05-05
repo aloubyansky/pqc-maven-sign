@@ -1,8 +1,8 @@
 package io.github.aloubyansky.pqc.maven.core;
 
-import org.junit.jupiter.api.Test;
-
 import static org.junit.jupiter.api.Assertions.*;
+
+import org.junit.jupiter.api.Test;
 
 /**
  * Unit tests for {@link HybridVerifier} and {@link VerificationReport}.
@@ -10,12 +10,12 @@ import static org.junit.jupiter.api.Assertions.*;
  * These tests focus on the VerificationReport logic without requiring external
  * tools like gpg or sq. The tests verify:
  * <ul>
- *   <li>Strict pass requires both classic and PQC signatures to pass</li>
- *   <li>Transitional pass requires only classic signature to pass</li>
- *   <li>Report formatting handles various result combinations</li>
- *   <li>Special cases like NOT_PRESENT and NO_KEY are handled correctly</li>
+ * <li>Strict pass requires both classic and PQC signatures to pass</li>
+ * <li>Transitional pass requires only classic signature to pass</li>
+ * <li>Report formatting handles various result combinations</li>
+ * <li>Special cases like NOT_PRESENT and NO_KEY are handled correctly</li>
  * </ul>
- * </p>
+ *
  */
 class HybridVerifierTest {
 
@@ -26,27 +26,26 @@ class HybridVerifierTest {
     @Test
     void report_bothPass() {
         VerificationReport report = new VerificationReport(
-            VerificationResult.PASS,
-            "0xABCD1234",
-            VerificationResult.PASS,
-            "ML-DSA-65+Ed25519",
-            "abc123def456"
-        );
+                VerificationResult.PASS,
+                "0xABCD1234",
+                VerificationResult.PASS,
+                "ML-DSA-65+Ed25519",
+                "abc123def456");
 
         assertTrue(report.isStrictPass(),
-            "Strict pass should be true when both signatures pass");
+                "Strict pass should be true when both signatures pass");
         assertTrue(report.isTransitionalPass(),
-            "Transitional pass should be true when classic signature passes");
+                "Transitional pass should be true when classic signature passes");
 
         String formatted = report.format();
         assertTrue(formatted.contains("PASS"),
-            "Formatted report should contain PASS");
+                "Formatted report should contain PASS");
         assertTrue(formatted.contains("0xABCD1234"),
-            "Formatted report should contain classic key ID");
+                "Formatted report should contain classic key ID");
         assertTrue(formatted.contains("ML-DSA-65+Ed25519"),
-            "Formatted report should contain PQC algorithm");
+                "Formatted report should contain PQC algorithm");
         assertTrue(formatted.contains("abc123def456"),
-            "Formatted report should contain PQC fingerprint");
+                "Formatted report should contain PQC fingerprint");
     }
 
     /**
@@ -56,21 +55,20 @@ class HybridVerifierTest {
     @Test
     void report_classicPassPqcNoKey() {
         VerificationReport report = new VerificationReport(
-            VerificationResult.PASS,
-            "0xABCD1234",
-            VerificationResult.NO_KEY,
-            "ML-DSA-65+Ed25519",
-            null
-        );
+                VerificationResult.PASS,
+                "0xABCD1234",
+                VerificationResult.NO_KEY,
+                "ML-DSA-65+Ed25519",
+                null);
 
         assertFalse(report.isStrictPass(),
-            "Strict pass should be false when PQC verification has no key");
+                "Strict pass should be false when PQC verification has no key");
         assertTrue(report.isTransitionalPass(),
-            "Transitional pass should be true when classic signature passes");
+                "Transitional pass should be true when classic signature passes");
 
         String formatted = report.format();
         assertTrue(formatted.contains("NO_KEY"),
-            "Formatted report should contain NO_KEY for PQC result");
+                "Formatted report should contain NO_KEY for PQC result");
     }
 
     /**
@@ -80,21 +78,20 @@ class HybridVerifierTest {
     @Test
     void report_classicPassPqcNotPresent() {
         VerificationReport report = new VerificationReport(
-            VerificationResult.PASS,
-            "0xABCD1234",
-            VerificationResult.NOT_PRESENT,
-            null,
-            null
-        );
+                VerificationResult.PASS,
+                "0xABCD1234",
+                VerificationResult.NOT_PRESENT,
+                null,
+                null);
 
         assertFalse(report.isStrictPass(),
-            "Strict pass should be false when PQC signature is not present");
+                "Strict pass should be false when PQC signature is not present");
         assertTrue(report.isTransitionalPass(),
-            "Transitional pass should be true when classic signature passes");
+                "Transitional pass should be true when classic signature passes");
 
         String formatted = report.format();
         assertTrue(formatted.contains("NOT PRESENT"),
-            "Formatted report should contain NOT PRESENT for classic-only signature");
+                "Formatted report should contain NOT PRESENT for classic-only signature");
     }
 
     /**
@@ -104,21 +101,20 @@ class HybridVerifierTest {
     @Test
     void report_bothFail() {
         VerificationReport report = new VerificationReport(
-            VerificationResult.FAIL,
-            "0xABCD1234",
-            VerificationResult.FAIL,
-            "ML-DSA-65+Ed25519",
-            "abc123def456"
-        );
+                VerificationResult.FAIL,
+                "0xABCD1234",
+                VerificationResult.FAIL,
+                "ML-DSA-65+Ed25519",
+                "abc123def456");
 
         assertFalse(report.isStrictPass(),
-            "Strict pass should be false when both signatures fail");
+                "Strict pass should be false when both signatures fail");
         assertFalse(report.isTransitionalPass(),
-            "Transitional pass should be false when classic signature fails");
+                "Transitional pass should be false when classic signature fails");
 
         String formatted = report.format();
         assertTrue(formatted.contains("FAIL"),
-            "Formatted report should contain FAIL");
+                "Formatted report should contain FAIL");
     }
 
     /**
@@ -128,17 +124,16 @@ class HybridVerifierTest {
     @Test
     void report_classicFailPqcPass() {
         VerificationReport report = new VerificationReport(
-            VerificationResult.FAIL,
-            "0xABCD1234",
-            VerificationResult.PASS,
-            "ML-DSA-65+Ed25519",
-            "abc123def456"
-        );
+                VerificationResult.FAIL,
+                "0xABCD1234",
+                VerificationResult.PASS,
+                "ML-DSA-65+Ed25519",
+                "abc123def456");
 
         assertFalse(report.isStrictPass(),
-            "Strict pass should be false when classic signature fails");
+                "Strict pass should be false when classic signature fails");
         assertFalse(report.isTransitionalPass(),
-            "Transitional pass should be false when classic signature fails");
+                "Transitional pass should be false when classic signature fails");
     }
 
     /**
@@ -148,12 +143,11 @@ class HybridVerifierTest {
     @Test
     void report_nullKeyId() {
         VerificationReport report = new VerificationReport(
-            VerificationResult.PASS,
-            null,
-            VerificationResult.PASS,
-            "ML-DSA-65+Ed25519",
-            "abc123def456"
-        );
+                VerificationResult.PASS,
+                null,
+                VerificationResult.PASS,
+                "ML-DSA-65+Ed25519",
+                "abc123def456");
 
         String formatted = report.format();
         String[] lines = formatted.split("\n");
@@ -165,9 +159,9 @@ class HybridVerifierTest {
             }
         }
         assertTrue(classicLineHasNoKey,
-            "Classic line should not contain [key:] when keyId is null");
+                "Classic line should not contain [key:] when keyId is null");
         assertTrue(formatted.contains("PASS"),
-            "Formatted report should still contain PASS");
+                "Formatted report should still contain PASS");
     }
 
     /**
@@ -177,12 +171,11 @@ class HybridVerifierTest {
     @Test
     void report_nullPqcFingerprint() {
         VerificationReport report = new VerificationReport(
-            VerificationResult.PASS,
-            "0xABCD1234",
-            VerificationResult.PASS,
-            "ML-DSA-65+Ed25519",
-            null
-        );
+                VerificationResult.PASS,
+                "0xABCD1234",
+                VerificationResult.PASS,
+                "ML-DSA-65+Ed25519",
+                null);
 
         String formatted = report.format();
         String[] lines = formatted.split("\n");
@@ -194,6 +187,6 @@ class HybridVerifierTest {
             }
         }
         assertTrue(pqcLineHasNoKey,
-            "PQC line should not contain [key:] when fingerprint is null");
+                "PQC line should not contain [key:] when fingerprint is null");
     }
 }

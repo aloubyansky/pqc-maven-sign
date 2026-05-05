@@ -1,12 +1,11 @@
 package io.github.aloubyansky.pqc.maven.core;
 
-import org.bouncycastle.bcpg.ArmoredInputStream;
-import org.bouncycastle.bcpg.ArmoredOutputStream;
-
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import org.bouncycastle.bcpg.ArmoredInputStream;
+import org.bouncycastle.bcpg.ArmoredOutputStream;
 
 /**
  * Utility class for manipulating ASCII-armored OpenPGP data.
@@ -76,9 +75,9 @@ public final class AscCombiner {
      * <p>
      * This method performs the following steps:
      * <ol>
-     *   <li>Dearmors both input blocks to extract raw packet bytes</li>
-     *   <li>Concatenates the raw packet bytes</li>
-     *   <li>Re-armors the combined packet data into a single ASCII-armored block</li>
+     * <li>Dearmors both input blocks to extract raw packet bytes</li>
+     * <li>Concatenates the raw packet bytes</li>
+     * <li>Re-armors the combined packet data into a single ASCII-armored block</li>
      * </ol>
      * <p>
      * This is useful for combining classical and post-quantum cryptographic signatures
@@ -113,7 +112,7 @@ public final class AscCombiner {
      */
     private static byte[] dearmorInternal(String armored) throws IOException {
         try (ByteArrayInputStream inputStream = new ByteArrayInputStream(armored.getBytes());
-             ArmoredInputStream armoredInputStream = new ArmoredInputStream(inputStream)) {
+                ArmoredInputStream armoredInputStream = new ArmoredInputStream(inputStream)) {
             return readAllBytes(armoredInputStream);
         }
     }
@@ -127,7 +126,7 @@ public final class AscCombiner {
      */
     private static String armorInternal(byte[] rawPackets) throws IOException {
         try (ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
-             ArmoredOutputStream armoredOutputStream = new ArmoredOutputStream(outputStream)) {
+                ArmoredOutputStream armoredOutputStream = new ArmoredOutputStream(outputStream)) {
             armoredOutputStream.write(rawPackets);
             armoredOutputStream.close();
             return outputStream.toString();

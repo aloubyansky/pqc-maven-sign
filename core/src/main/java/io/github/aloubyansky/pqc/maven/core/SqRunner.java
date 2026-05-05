@@ -5,11 +5,11 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.UncheckedIOException;
-import java.util.concurrent.CompletableFuture;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -22,46 +22,47 @@ import java.util.regex.Pattern;
  * capabilities, specifically using the ML-DSA-65 + Ed25519 hybrid cipher suite
  * as defined in RFC 9580. All operations are isolated to a specific Sequoia
  * home directory via the SEQUOIA_HOME environment variable.
- * </p>
+ *
  * <p>
  * Example usage:
- * <pre>{@code
- * // Initialize with a dedicated Sequoia home directory
- * Path sqHome = Path.of("/tmp/my-sq-keys");
- * SqRunner sq = new SqRunner(sqHome);
  *
- * // Generate a PQC key
- * String fingerprint = sq.generateKey("Alice <alice@example.com>");
+ * <pre>
+ * {
+ *     &#64;code
+ *     // Initialize with a dedicated Sequoia home directory
+ *     Path sqHome = Path.of("/tmp/my-sq-keys");
+ *     SqRunner sq = new SqRunner(sqHome);
  *
- * // Sign an artifact
- * String signature = sq.sign(
- *     Path.of("artifact.jar"),
- *     Path.of("artifact.jar.sig"),
- *     fingerprint
- * );
+ *     // Generate a PQC key
+ *     String fingerprint = sq.generateKey("Alice &lt;alice@example.com&gt;");
  *
- * // Verify the signature
- * boolean valid = sq.verify(
- *     Path.of("artifact.jar"),
- *     Path.of("artifact.jar.sig"),
- *     fingerprint
- * );
+ *     // Sign an artifact
+ *     String signature = sq.sign(
+ *             Path.of("artifact.jar"),
+ *             Path.of("artifact.jar.sig"),
+ *             fingerprint);
  *
- * // Export the certificate for distribution
- * String cert = sq.exportCert(fingerprint);
- * }</pre>
+ *     // Verify the signature
+ *     boolean valid = sq.verify(
+ *             Path.of("artifact.jar"),
+ *             Path.of("artifact.jar.sig"),
+ *             fingerprint);
+ *
+ *     // Export the certificate for distribution
+ *     String cert = sq.exportCert(fingerprint);
+ * }
+ * </pre>
  * <p>
  * Note: This class requires the {@code sq} executable to be available on the
  * system PATH or at the location specified via the constructor.
- * </p>
+ *
  *
  * @see #isAvailable()
  */
 public class SqRunner {
 
     private static final int TIMEOUT_SECONDS = 60;
-    private static final Pattern FINGERPRINT_PATTERN =
-        Pattern.compile("(?i)(?:fingerprint:?\\s*)?([0-9A-F]{64})");
+    private static final Pattern FINGERPRINT_PATTERN = Pattern.compile("(?i)(?:fingerprint:?\\s*)?([0-9A-F]{64})");
 
     private final String sqExecutable;
     private final Path sequoiaHome;
@@ -101,13 +102,13 @@ public class SqRunner {
      * This method runs:
      * {@code sq key generate --userid <userId> --cipher-suite mldsa65-ed25519
      * --profile rfc9580 --own-key}
-     * </p>
+     *
      * <p>
      * The key is stored in the SEQUOIA_HOME directory and can be used for signing
      * operations via the returned fingerprint.
-     * </p>
      *
-     * @param userId the user ID for the key (e.g., "Alice <alice@example.com>")
+     *
+     * @param userId the user ID for the key (e.g., "Alice &lt;alice@example.com&gt;")
      * @return the 64-character hexadecimal fingerprint of the generated key
      * @throws IllegalArgumentException if userId is null or empty
      * @throws CliTool.CliException if the sq command fails
@@ -119,12 +120,12 @@ public class SqRunner {
         }
 
         String[] args = {
-            "key", "generate",
-            "--userid", userId,
-            "--cipher-suite", "mldsa65-ed25519",
-            "--profile", "rfc9580",
-            "--own-key",
-            "--without-password"
+                "key", "generate",
+                "--userid", userId,
+                "--cipher-suite", "mldsa65-ed25519",
+                "--profile", "rfc9580",
+                "--own-key",
+                "--without-password"
         };
 
         CliTool.Result result = runSq(args);
@@ -139,7 +140,7 @@ public class SqRunner {
      * This method runs:
      * {@code sq sign --detached --signer <fingerprint> --signature-file <outputSig>
      * <artifactFile>}
-     * </p>
+     *
      *
      * @param artifactFile the file to sign
      * @param outputSig the path where the signature file will be written
@@ -162,10 +163,10 @@ public class SqRunner {
 
         // --signature-file implies detached signing (no --detached flag needed)
         String[] args = {
-            "sign",
-            "--signer", fingerprint,
-            "--signature-file", outputSig.toString(),
-            artifactFile.toString()
+                "sign",
+                "--signer", fingerprint,
+                "--signature-file", outputSig.toString(),
+                artifactFile.toString()
         };
 
         runSq(args);
@@ -178,12 +179,12 @@ public class SqRunner {
      * This method runs:
      * {@code sq verify --signer <fingerprint> --signature-file <signatureFile>
      * <artifactFile>}
-     * </p>
+     *
      *
      * @param artifactFile the file that was signed
      * @param signatureFile the detached signature file
      * @param signerFingerprint the expected signer's fingerprint, or null to skip
-     *                          signer verification
+     *        signer verification
      * @return true if the signature is valid, false otherwise
      * @throws IllegalArgumentException if artifactFile or signatureFile is null
      */
@@ -210,10 +211,10 @@ public class SqRunner {
      * <p>
      * This method runs:
      * {@code sq cert export --cert <fingerprint>}
-     * </p>
+     *
      * <p>
      * The exported certificate can be distributed to others for signature verification.
-     * </p>
+     *
      *
      * @param fingerprint the fingerprint of the certificate to export
      * @return the armored certificate as a String
@@ -226,8 +227,8 @@ public class SqRunner {
         }
 
         String[] args = {
-            "cert", "export",
-            "--cert", fingerprint
+                "cert", "export",
+                "--cert", fingerprint
         };
 
         CliTool.Result result = runSq(args);
@@ -240,7 +241,7 @@ public class SqRunner {
      * This method runs {@code sq version} and returns true if the command
      * succeeds (exit code 0). This can be used to verify that Sequoia is properly
      * installed before attempting to use the runner.
-     * </p>
+     *
      *
      * @return true if sq is available and responds to version command, false otherwise
      */
@@ -258,7 +259,7 @@ public class SqRunner {
      * <p>
      * This is a specialized version of CliTool.run() that sets the SEQUOIA_HOME
      * environment variable to isolate key storage and configuration.
-     * </p>
+     *
      *
      * @param args the sq command arguments (without the executable name)
      * @return the result of the command execution
@@ -338,8 +339,7 @@ public class SqRunner {
             if (!completed) {
                 process.destroyForcibly();
                 throw new RuntimeException(
-                    "sq process did not complete within " + TIMEOUT_SECONDS + " seconds"
-                );
+                        "sq process did not complete within " + TIMEOUT_SECONDS + " seconds");
             }
             return process.exitValue();
         } catch (InterruptedException e) {
@@ -384,11 +384,10 @@ public class SqRunner {
         if (result.exitCode() != 0) {
             String commandStr = String.join(" ", command);
             String message = String.format(
-                "Command '%s' failed with exit code %d%s",
-                commandStr,
-                result.exitCode(),
-                result.stderr().isEmpty() ? "" : ": " + result.stderr().trim()
-            );
+                    "Command '%s' failed with exit code %d%s",
+                    commandStr,
+                    result.exitCode(),
+                    result.stderr().isEmpty() ? "" : ": " + result.stderr().trim());
             throw new CliTool.CliException(message, result.exitCode());
         }
     }
@@ -402,7 +401,7 @@ public class SqRunner {
      * @return the verify command arguments
      */
     private String[] buildVerifyCommand(Path artifactFile, Path signatureFile,
-                                        String signerFingerprint) {
+            String signerFingerprint) {
         List<String> args = new ArrayList<>();
         args.add("verify");
 
@@ -423,11 +422,11 @@ public class SqRunner {
      * <p>
      * This method tries multiple patterns to handle different output formats:
      * <ul>
-     *   <li>"Fingerprint: ABCD..." (with label)</li>
-     *   <li>"fingerprint: abcd..." (case-insensitive)</li>
-     *   <li>Bare 64-character hex string on its own line</li>
+     * <li>"Fingerprint: ABCD..." (with label)</li>
+     * <li>"fingerprint: abcd..." (case-insensitive)</li>
+     * <li>Bare 64-character hex string on its own line</li>
      * </ul>
-     * </p>
+     *
      *
      * @param output the stdout from sq key generate
      * @return the extracted fingerprint
@@ -447,8 +446,7 @@ public class SqRunner {
         }
 
         throw new IllegalStateException(
-            "Failed to extract fingerprint from sq output: " + output
-        );
+                "Failed to extract fingerprint from sq output: " + output);
     }
 
     /**
@@ -463,9 +461,8 @@ public class SqRunner {
             return Files.readString(signatureFile);
         } catch (IOException e) {
             throw new UncheckedIOException(
-                "Failed to read signature file: " + signatureFile,
-                e
-            );
+                    "Failed to read signature file: " + signatureFile,
+                    e);
         }
     }
 }

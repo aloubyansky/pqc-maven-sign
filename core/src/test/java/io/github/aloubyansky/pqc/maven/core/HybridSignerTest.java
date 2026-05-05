@@ -1,20 +1,19 @@
 package io.github.aloubyansky.pqc.maven.core;
 
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.io.TempDir;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
-
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 /**
  * Tests for {@link HybridSigner}.
  * <p>
  * These tests use mock signers to verify orchestration logic without
  * requiring actual GPG or sq installations.
- * </p>
+ *
  */
 class HybridSignerTest {
 
@@ -29,22 +28,21 @@ class HybridSignerTest {
 
         // Use canned armored blocks that AscCombiner can actually process.
         // Generate them using AscCombiner.armor() with fake packet bytes.
-        byte[] fakeClassicPacket = new byte[]{0x04, 0x00, 0x1F}; // some bytes
-        byte[] fakePqcPacket = new byte[]{0x06, 0x00, 0x2A};      // some bytes
+        byte[] fakeClassicPacket = new byte[] { 0x04, 0x00, 0x1F }; // some bytes
+        byte[] fakePqcPacket = new byte[] { 0x06, 0x00, 0x2A }; // some bytes
         String fakeClassicAsc = AscCombiner.armor(fakeClassicPacket);
         String fakePqcAsc = AscCombiner.armor(fakePqcPacket);
 
         // Mock signers
         HybridSigner signer = new HybridSigner(
-            (file, output) -> {
-                Files.writeString(output, fakeClassicAsc);
-                return fakeClassicAsc;
-            },
-            (file, output, fp) -> {
-                Files.writeString(output, fakePqcAsc);
-                return fakePqcAsc;
-            }
-        ).withPqcFingerprint("0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF");
+                (file, output) -> {
+                    Files.writeString(output, fakeClassicAsc);
+                    return fakeClassicAsc;
+                },
+                (file, output, fp) -> {
+                    Files.writeString(output, fakePqcAsc);
+                    return fakePqcAsc;
+                }).withPqcFingerprint("0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF");
 
         Path ascOutput = tempDir.resolve("test.jar.asc");
         signer.sign(artifact, ascOutput);

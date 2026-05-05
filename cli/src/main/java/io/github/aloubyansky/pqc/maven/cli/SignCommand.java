@@ -3,11 +3,10 @@ package io.github.aloubyansky.pqc.maven.cli;
 import io.github.aloubyansky.pqc.maven.core.GpgSigner;
 import io.github.aloubyansky.pqc.maven.core.HybridSigner;
 import io.github.aloubyansky.pqc.maven.core.SqRunner;
-import picocli.CommandLine;
-
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.concurrent.Callable;
+import picocli.CommandLine;
 
 /**
  * Command-line interface for creating hybrid signatures.
@@ -16,9 +15,10 @@ import java.util.concurrent.Callable;
  * and post-quantum cryptography (v6 packet using ML-DSA-65 + Ed25519) into a
  * single ASCII-armored signature file. The resulting signature provides both
  * classical and quantum-resistant security.
- * </p>
+ *
  * <p>
  * Example usage:
+ *
  * <pre>
  * # Sign with PQC only (using default GPG key)
  * pqc-sign sign --file artifact.jar --pqc-fingerprint ABC123DEF456...
@@ -34,29 +34,25 @@ import java.util.concurrent.Callable;
  *               --output custom-signature.asc \
  *               --sq-home /path/to/sq-home
  * </pre>
- * </p>
+ *
  * <p>
  * The command outputs the path to the generated signature file on success.
- * </p>
+ *
  * <p>
  * Requirements:
  * <ul>
- *   <li>{@code gpg} executable must be available on the system PATH</li>
- *   <li>{@code sq} executable must be available on the system PATH</li>
- *   <li>A GPG key must be configured (either default or specified via --gpg-key)</li>
- *   <li>The PQC key must exist in the Sequoia home directory</li>
+ * <li>{@code gpg} executable must be available on the system PATH</li>
+ * <li>{@code sq} executable must be available on the system PATH</li>
+ * <li>A GPG key must be configured (either default or specified via --gpg-key)</li>
+ * <li>The PQC key must exist in the Sequoia home directory</li>
  * </ul>
- * </p>
+ *
  *
  * @see HybridSigner
  * @see GpgSigner
  * @see SqRunner
  */
-@CommandLine.Command(
-    name = "sign",
-    description = "Create a hybrid signature combining GPG and PQC",
-    mixinStandardHelpOptions = true
-)
+@CommandLine.Command(name = "sign", description = "Create a hybrid signature combining GPG and PQC", mixinStandardHelpOptions = true)
 public class SignCommand implements Callable<Integer> {
 
     /**
@@ -64,13 +60,9 @@ public class SignCommand implements Callable<Integer> {
      * <p>
      * This is typically a Maven artifact (e.g., {@code artifact.jar}), but can be
      * any file that needs to be signed.
-     * </p>
+     *
      */
-    @CommandLine.Option(
-        names = {"--file"},
-        required = true,
-        description = "Artifact file to sign"
-    )
+    @CommandLine.Option(names = { "--file" }, required = true, description = "Artifact file to sign")
     private String file;
 
     /**
@@ -78,13 +70,9 @@ public class SignCommand implements Callable<Integer> {
      * <p>
      * This should be the 64-character hexadecimal fingerprint returned by the
      * {@code keygen} command. The key must exist in the Sequoia home directory.
-     * </p>
+     *
      */
-    @CommandLine.Option(
-        names = {"--pqc-fingerprint"},
-        required = true,
-        description = "PQC key fingerprint (64-char hex)"
-    )
+    @CommandLine.Option(names = { "--pqc-fingerprint" }, required = true, description = "PQC key fingerprint (64-char hex)")
     private String pqcFingerprint;
 
     /**
@@ -93,24 +81,18 @@ public class SignCommand implements Callable<Integer> {
      * This can be a key ID, fingerprint, or email address associated with the GPG
      * key. If not specified, GPG will use the default key configured in the user's
      * GPG keyring.
-     * </p>
+     *
      */
-    @CommandLine.Option(
-        names = {"--gpg-key"},
-        description = "GPG key ID/email (default: use GPG's default key)"
-    )
+    @CommandLine.Option(names = { "--gpg-key" }, description = "GPG key ID/email (default: use GPG's default key)")
     private String gpgKey;
 
     /**
      * The Sequoia home directory where the PQC key is stored.
      * <p>
      * If not specified, defaults to {@code ~/.local/share/sequoia}.
-     * </p>
+     *
      */
-    @CommandLine.Option(
-        names = {"--sq-home"},
-        description = "Sequoia home directory (default: ~/.local/share/sequoia)"
-    )
+    @CommandLine.Option(names = { "--sq-home" }, description = "Sequoia home directory (default: ~/.local/share/sequoia)")
     private String sqHome;
 
     /**
@@ -118,12 +100,9 @@ public class SignCommand implements Callable<Integer> {
      * <p>
      * If not specified, the signature will be written to {@code <file>.asc}
      * (e.g., {@code artifact.jar.asc} for {@code artifact.jar}).
-     * </p>
+     *
      */
-    @CommandLine.Option(
-        names = {"--output"},
-        description = "Output signature file path (default: <file>.asc)"
-    )
+    @CommandLine.Option(names = { "--output" }, description = "Output signature file path (default: <file>.asc)")
     private String output;
 
     /**
@@ -131,17 +110,17 @@ public class SignCommand implements Callable<Integer> {
      * <p>
      * This method performs the following steps:
      * <ol>
-     *   <li>Resolves file paths (artifact, output, Sequoia home)</li>
-     *   <li>Creates {@link GpgSigner} and {@link SqRunner} instances</li>
-     *   <li>Creates a {@link HybridSigner} using the factory method</li>
-     *   <li>Generates the hybrid signature</li>
-     *   <li>Prints the output file path</li>
+     * <li>Resolves file paths (artifact, output, Sequoia home)</li>
+     * <li>Creates {@link GpgSigner} and {@link SqRunner} instances</li>
+     * <li>Creates a {@link HybridSigner} using the factory method</li>
+     * <li>Generates the hybrid signature</li>
+     * <li>Prints the output file path</li>
      * </ol>
-     * </p>
+     *
      * <p>
      * On error, catches all exceptions, prints a user-friendly error message to
      * stderr, and returns exit code 1.
-     * </p>
+     *
      *
      * @return 0 on success, 1 on error
      */
@@ -180,7 +159,7 @@ public class SignCommand implements Callable<Integer> {
      * <p>
      * If {@link #output} is specified, it is used as-is. Otherwise, the default
      * path is {@code <artifactFile>.asc}.
-     * </p>
+     *
      *
      * @param artifactFile the artifact file being signed
      * @return the output signature file path
@@ -197,7 +176,7 @@ public class SignCommand implements Callable<Integer> {
      * <p>
      * If {@link #sqHome} is specified, it is used as-is. Otherwise, the default
      * Sequoia home directory is returned: {@code ~/.local/share/sequoia}.
-     * </p>
+     *
      *
      * @return the resolved Sequoia home directory path
      */
@@ -216,7 +195,7 @@ public class SignCommand implements Callable<Integer> {
      * If the path starts with {@code ~/}, the tilde is replaced with the value
      * of the {@code user.home} system property. Otherwise, the path is returned
      * unchanged.
-     * </p>
+     *
      *
      * @param path the path to expand
      * @return the path with tilde expanded, or the original path if no tilde present
@@ -234,7 +213,7 @@ public class SignCommand implements Callable<Integer> {
      * <p>
      * If {@link #gpgKey} is specified, it is used as the key identifier. Otherwise,
      * {@code null} is passed, which causes GPG to use its default key.
-     * </p>
+     *
      *
      * @return a configured GpgSigner instance
      */
@@ -256,12 +235,13 @@ public class SignCommand implements Callable<Integer> {
      * Prints a success message with the output signature file path.
      * <p>
      * Example output:
+     *
      * <pre>
      * Hybrid signature created successfully!
      *
      * Signature file: /path/to/artifact.jar.asc
      * </pre>
-     * </p>
+     *
      *
      * @param outputFile the path to the generated signature file
      */
@@ -276,7 +256,7 @@ public class SignCommand implements Callable<Integer> {
      * <p>
      * This method extracts the most relevant error message from the exception
      * chain and displays it in a clear format.
-     * </p>
+     *
      *
      * @param e the exception that occurred during signing
      */
@@ -296,7 +276,7 @@ public class SignCommand implements Callable<Integer> {
      * <p>
      * If the exception has a message, it is returned. Otherwise, the simple
      * class name of the exception is returned.
-     * </p>
+     *
      *
      * @param e the exception to extract the message from
      * @return a user-friendly error message

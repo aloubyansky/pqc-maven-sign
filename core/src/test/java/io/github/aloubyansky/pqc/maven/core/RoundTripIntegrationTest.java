@@ -1,15 +1,14 @@
 package io.github.aloubyansky.pqc.maven.core;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+import java.nio.file.Files;
+import java.nio.file.Path;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIf;
 import org.junit.jupiter.api.io.TempDir;
-
-import java.nio.file.Files;
-import java.nio.file.Path;
-
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Full round-trip integration tests for hybrid PQC signing and verification.
@@ -18,22 +17,22 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * with hybrid (classical + post-quantum) signatures and verifying them. These
  * tests require both GnuPG (gpg) and Sequoia (sq) to be installed and available
  * on the system PATH.
- * </p>
+ *
  * <p>
  * The test suite is automatically disabled via {@link EnabledIf} if either
  * tool is unavailable, making it safe to run in environments where these
  * tools may not be installed.
- * </p>
+ *
  * <p>
  * Test flow:
  * <ol>
- *   <li>Generate a PQC key using Sequoia's ML-DSA-65 + Ed25519 cipher suite</li>
- *   <li>Sign artifacts using {@link HybridSigner} (GPG + Sequoia)</li>
- *   <li>Verify signatures using {@link HybridVerifier}</li>
- *   <li>Validate backward compatibility with GPG-only verification</li>
- *   <li>Verify tamper detection capabilities</li>
+ * <li>Generate a PQC key using Sequoia's ML-DSA-65 + Ed25519 cipher suite</li>
+ * <li>Sign artifacts using {@link HybridSigner} (GPG + Sequoia)</li>
+ * <li>Verify signatures using {@link HybridVerifier}</li>
+ * <li>Validate backward compatibility with GPG-only verification</li>
+ * <li>Verify tamper detection capabilities</li>
  * </ol>
- * </p>
+ *
  *
  * @see HybridSigner
  * @see HybridVerifier
@@ -53,7 +52,7 @@ class RoundTripIntegrationTest {
      * that it supports the PQC cipher suite ({@code mldsa65-ed25519}). The standard
      * Sequoia release (1.3.x) does not include PQC support — version 1.4.0-pqc.1+
      * from the {@code pqc} branch is required.
-     * </p>
+     *
      *
      * @return true if both {@code gpg} and PQC-enabled {@code sq} are available
      */
@@ -78,7 +77,7 @@ class RoundTripIntegrationTest {
      * The generated key uses Sequoia's ML-DSA-65 + Ed25519 hybrid cipher suite,
      * providing both classical and post-quantum security. The key fingerprint is
      * stored in {@link #pqcFingerprint} for use by all test methods.
-     * </p>
+     *
      *
      * @param tempDir a temporary directory provided by JUnit, used as SEQUOIA_HOME
      * @throws Exception if key generation fails
@@ -97,16 +96,16 @@ class RoundTripIntegrationTest {
      * <p>
      * This test verifies that:
      * <ul>
-     *   <li>Hybrid signing produces a valid combined signature file</li>
-     *   <li>The classical GPG signature component is valid</li>
-     *   <li>The PQC Sequoia signature component is valid</li>
-     *   <li>{@link VerificationReport#isStrictPass()} returns true (both components pass)</li>
+     * <li>Hybrid signing produces a valid combined signature file</li>
+     * <li>The classical GPG signature component is valid</li>
+     * <li>The PQC Sequoia signature component is valid</li>
+     * <li>{@link VerificationReport#isStrictPass()} returns true (both components pass)</li>
      * </ul>
-     * </p>
+     *
      * <p>
      * The verification report is printed to stdout to aid in debugging and to
      * demonstrate the human-readable format of {@link VerificationReport#format()}.
-     * </p>
+     *
      *
      * @param tempDir a temporary directory for test artifacts
      * @throws Exception if signing or verification fails
@@ -129,11 +128,11 @@ class RoundTripIntegrationTest {
 
         // Assert: Both classic and PQC signatures should pass
         assertEquals(VerificationResult.PASS, report.classicResult(),
-            "Classic (GPG) signature should be valid");
+                "Classic (GPG) signature should be valid");
         assertEquals(VerificationResult.PASS, report.pqcResult(),
-            "PQC (Sequoia) signature should be valid");
+                "PQC (Sequoia) signature should be valid");
         assertTrue(report.isStrictPass(),
-            "Strict verification (both signatures) should pass");
+                "Strict verification (both signatures) should pass");
 
         // Print the report for manual inspection
         System.out.println("=== Full Round-Trip Verification Report ===");
@@ -146,15 +145,15 @@ class RoundTripIntegrationTest {
      * <p>
      * This test ensures that:
      * <ul>
-     *   <li>The hybrid signature file is a valid GPG signature file</li>
-     *   <li>GPG's {@code --verify} command succeeds (exit code 0)</li>
-     *   <li>Systems without PQC support can still verify the classical signature</li>
+     * <li>The hybrid signature file is a valid GPG signature file</li>
+     * <li>GPG's {@code --verify} command succeeds (exit code 0)</li>
+     * <li>Systems without PQC support can still verify the classical signature</li>
      * </ul>
-     * </p>
+     *
      * <p>
      * This is critical for gradual migration scenarios where some systems may not
      * yet have PQC verification capabilities but still need to validate artifacts.
-     * </p>
+     *
      *
      * @param tempDir a temporary directory for test artifacts
      * @throws Exception if signing or verification fails
@@ -169,19 +168,18 @@ class RoundTripIntegrationTest {
 
         // Act: Verify with GPG command-line tool directly
         CliTool.Result result = CliTool.run(
-            "gpg",
-            "--verify",
-            signature.toString(),
-            artifact.toString()
-        );
+                "gpg",
+                "--verify",
+                signature.toString(),
+                artifact.toString());
 
         // Assert: GPG should successfully verify despite v6 PQC packet.
         // GPG may return exit code 2 (warnings) due to the unknown v6 packet,
         // but the classic signature is still verified ("Good signature").
         assertTrue(result.exitCode() == 0
                 || (result.exitCode() == 2 && result.stderr().contains("Good signature")),
-            "GPG should verify the combined .asc file (backward compatible). "
-            + "Exit: " + result.exitCode() + " stderr: " + result.stderr());
+                "GPG should verify the combined .asc file (backward compatible). "
+                        + "Exit: " + result.exitCode() + " stderr: " + result.stderr());
 
         System.out.println("=== Backward Compatibility Test ===");
         System.out.println("GPG verified hybrid signature successfully");
@@ -197,15 +195,15 @@ class RoundTripIntegrationTest {
      * <p>
      * This test verifies that:
      * <ul>
-     *   <li>Modifying the artifact after signing invalidates both signatures</li>
-     *   <li>Both classical and PQC verification results are FAIL</li>
-     *   <li>The signature mechanism provides tamper detection</li>
+     * <li>Modifying the artifact after signing invalidates both signatures</li>
+     * <li>Both classical and PQC verification results are FAIL</li>
+     * <li>The signature mechanism provides tamper detection</li>
      * </ul>
-     * </p>
+     *
      * <p>
      * This is a critical security property - any modification to the signed
      * artifact should be detected by the verification process.
-     * </p>
+     *
      *
      * @param tempDir a temporary directory for test artifacts
      * @throws Exception if signing or verification setup fails
@@ -227,9 +225,9 @@ class RoundTripIntegrationTest {
 
         // Assert: Both signatures should fail due to tampering
         assertEquals(VerificationResult.FAIL, report.classicResult(),
-            "Classic (GPG) signature should fail for tampered artifact");
+                "Classic (GPG) signature should fail for tampered artifact");
         assertEquals(VerificationResult.FAIL, report.pqcResult(),
-            "PQC (Sequoia) signature should fail for tampered artifact");
+                "PQC (Sequoia) signature should fail for tampered artifact");
 
         System.out.println("=== Tampered Artifact Verification Report ===");
         System.out.println(report.format());
@@ -240,7 +238,7 @@ class RoundTripIntegrationTest {
      * <p>
      * This helper method creates a file in the specified directory with
      * deterministic content that can be signed and verified.
-     * </p>
+     *
      *
      * @param tempDir the directory where the artifact will be created
      * @param filename the name of the artifact file
@@ -250,8 +248,8 @@ class RoundTripIntegrationTest {
     private Path createTestArtifact(Path tempDir, String filename) throws Exception {
         Path artifact = tempDir.resolve(filename);
         Files.writeString(artifact, "This is a test artifact for PQC signing verification.\n" +
-            "It contains some sample content that will be signed and verified.\n" +
-            "The content is not important, only that it remains unchanged.\n");
+                "It contains some sample content that will be signed and verified.\n" +
+                "The content is not important, only that it remains unchanged.\n");
         return artifact;
     }
 
@@ -261,12 +259,12 @@ class RoundTripIntegrationTest {
      * <p>
      * This helper method encapsulates the signer creation logic and ensures
      * consistent configuration across all test methods.
-     * </p>
+     *
      *
      * @return a configured HybridSigner instance
      */
     private HybridSigner createHybridSigner() {
-        GpgSigner gpg = new GpgSigner(null);  // null = use default GPG key
+        GpgSigner gpg = new GpgSigner(null); // null = use default GPG key
         SqRunner sq = new SqRunner(sqHome);
         return HybridSigner.create(gpg, sq, pqcFingerprint);
     }
@@ -277,12 +275,12 @@ class RoundTripIntegrationTest {
      * <p>
      * This helper method encapsulates the verifier creation logic and ensures
      * consistent configuration across all test methods.
-     * </p>
+     *
      *
      * @return a configured HybridVerifier instance
      */
     private HybridVerifier createHybridVerifier() {
-        GpgSigner gpg = new GpgSigner(null);  // null = use default GPG key
+        GpgSigner gpg = new GpgSigner(null); // null = use default GPG key
         SqRunner sq = new SqRunner(sqHome);
         return new HybridVerifier(gpg, sq, pqcFingerprint);
     }

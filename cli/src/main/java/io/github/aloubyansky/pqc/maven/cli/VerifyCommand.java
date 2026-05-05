@@ -5,11 +5,10 @@ import io.github.aloubyansky.pqc.maven.core.HybridVerifier;
 import io.github.aloubyansky.pqc.maven.core.SqRunner;
 import io.github.aloubyansky.pqc.maven.core.VerificationReport;
 import io.github.aloubyansky.pqc.maven.core.VerificationResult;
-import picocli.CommandLine;
-
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.concurrent.Callable;
+import picocli.CommandLine;
 
 /**
  * Command-line interface for verifying hybrid signatures.
@@ -17,13 +16,14 @@ import java.util.concurrent.Callable;
  * This command verifies both classical GPG and post-quantum cryptographic
  * signatures in a hybrid signature file. It supports two verification modes:
  * <ul>
- *   <li><b>Transitional mode</b> (default): Only the classical GPG signature must
- *       pass. PQC signature is optional.</li>
- *   <li><b>Strict mode</b> (--strict flag): Both GPG and PQC signatures must pass.</li>
+ * <li><b>Transitional mode</b> (default): Only the classical GPG signature must
+ * pass. PQC signature is optional.</li>
+ * <li><b>Strict mode</b> (--strict flag): Both GPG and PQC signatures must pass.</li>
  * </ul>
- * </p>
+ *
  * <p>
  * Example usage:
+ *
  * <pre>
  * # Verify with transitional mode (classic signature sufficient)
  * pqc-sign verify --file artifact.jar --signature artifact.jar.asc
@@ -41,33 +41,29 @@ import java.util.concurrent.Callable;
  *                 --signature artifact.jar.asc \
  *                 --sq-home /path/to/sq-home
  * </pre>
- * </p>
+ *
  * <p>
  * The command outputs a detailed verification report showing the status of both
  * classical and PQC signatures, and exits with:
  * <ul>
- *   <li>Exit code 0: Verification passed (according to the selected mode)</li>
- *   <li>Exit code 1: Verification failed</li>
+ * <li>Exit code 0: Verification passed (according to the selected mode)</li>
+ * <li>Exit code 1: Verification failed</li>
  * </ul>
- * </p>
+ *
  * <p>
  * Requirements:
  * <ul>
- *   <li>{@code gpg} executable must be available on the system PATH</li>
- *   <li>{@code sq} executable must be available for PQC verification (optional in
- *       transitional mode)</li>
- *   <li>The signer's public keys must be available in the respective keystores</li>
+ * <li>{@code gpg} executable must be available on the system PATH</li>
+ * <li>{@code sq} executable must be available for PQC verification (optional in
+ * transitional mode)</li>
+ * <li>The signer's public keys must be available in the respective keystores</li>
  * </ul>
- * </p>
+ *
  *
  * @see HybridVerifier
  * @see VerificationReport
  */
-@CommandLine.Command(
-    name = "verify",
-    description = "Verify a hybrid signature",
-    mixinStandardHelpOptions = true
-)
+@CommandLine.Command(name = "verify", description = "Verify a hybrid signature", mixinStandardHelpOptions = true)
 public class VerifyCommand implements Callable<Integer> {
 
     /**
@@ -75,13 +71,9 @@ public class VerifyCommand implements Callable<Integer> {
      * <p>
      * This is the file that was originally signed and whose signature will be
      * verified.
-     * </p>
+     *
      */
-    @CommandLine.Option(
-        names = {"--file"},
-        required = true,
-        description = "Artifact file to verify"
-    )
+    @CommandLine.Option(names = { "--file" }, required = true, description = "Artifact file to verify")
     private String file;
 
     /**
@@ -89,13 +81,9 @@ public class VerifyCommand implements Callable<Integer> {
      * <p>
      * This is typically an ASCII-armored signature file with the {@code .asc}
      * extension (e.g., {@code artifact.jar.asc}).
-     * </p>
+     *
      */
-    @CommandLine.Option(
-        names = {"--signature"},
-        required = true,
-        description = "Signature file (.asc)"
-    )
+    @CommandLine.Option(names = { "--signature" }, required = true, description = "Signature file (.asc)")
     private String signature;
 
     /**
@@ -104,24 +92,18 @@ public class VerifyCommand implements Callable<Integer> {
      * If specified, the PQC signature will be verified against this specific key.
      * If not specified, PQC verification will succeed as long as any valid PQC
      * signature is present (without checking the signer identity).
-     * </p>
+     *
      */
-    @CommandLine.Option(
-        names = {"--pqc-fingerprint"},
-        description = "Expected PQC key fingerprint (optional)"
-    )
+    @CommandLine.Option(names = { "--pqc-fingerprint" }, description = "Expected PQC key fingerprint (optional)")
     private String pqcFingerprint;
 
     /**
      * The Sequoia home directory where PQC keys are stored.
      * <p>
      * If not specified, defaults to {@code ~/.local/share/sequoia}.
-     * </p>
+     *
      */
-    @CommandLine.Option(
-        names = {"--sq-home"},
-        description = "Sequoia home directory (default: ~/.local/share/sequoia)"
-    )
+    @CommandLine.Option(names = { "--sq-home" }, description = "Sequoia home directory (default: ~/.local/share/sequoia)")
     private String sqHome;
 
     /**
@@ -129,17 +111,14 @@ public class VerifyCommand implements Callable<Integer> {
      * <p>
      * In strict mode, both the classical GPG signature and the PQC signature must
      * pass verification. This provides quantum-resistant security guarantees.
-     * </p>
+     *
      * <p>
      * In transitional mode (default), only the classical GPG signature is required
      * to pass. This allows for gradual migration to PQC signatures while maintaining
      * backward compatibility.
-     * </p>
+     *
      */
-    @CommandLine.Option(
-        names = {"--strict"},
-        description = "Require both GPG and PQC signatures to pass (default: false)"
-    )
+    @CommandLine.Option(names = { "--strict" }, description = "Require both GPG and PQC signatures to pass (default: false)")
     private boolean strict;
 
     /**
@@ -147,18 +126,18 @@ public class VerifyCommand implements Callable<Integer> {
      * <p>
      * This method performs the following steps:
      * <ol>
-     *   <li>Resolves file paths (artifact, signature, Sequoia home)</li>
-     *   <li>Creates {@link GpgSigner} and {@link SqRunner} instances (if available)</li>
-     *   <li>Creates a {@link HybridVerifier}</li>
-     *   <li>Performs verification and generates a report</li>
-     *   <li>Prints the verification report</li>
-     *   <li>Determines the exit code based on the verification mode</li>
+     * <li>Resolves file paths (artifact, signature, Sequoia home)</li>
+     * <li>Creates {@link GpgSigner} and {@link SqRunner} instances (if available)</li>
+     * <li>Creates a {@link HybridVerifier}</li>
+     * <li>Performs verification and generates a report</li>
+     * <li>Prints the verification report</li>
+     * <li>Determines the exit code based on the verification mode</li>
      * </ol>
-     * </p>
+     *
      * <p>
      * On error, catches all exceptions, prints a user-friendly error message to
      * stderr, and returns exit code 1.
-     * </p>
+     *
      *
      * @return 0 if verification passes, 1 if verification fails or an error occurs
      */
@@ -207,7 +186,7 @@ public class VerifyCommand implements Callable<Integer> {
      * <p>
      * If {@link #sqHome} is specified, it is used as-is. Otherwise, the default
      * Sequoia home directory is returned: {@code ~/.local/share/sequoia}.
-     * </p>
+     *
      *
      * @return the resolved Sequoia home directory path
      */
@@ -226,7 +205,7 @@ public class VerifyCommand implements Callable<Integer> {
      * If the path starts with {@code ~/}, the tilde is replaced with the value
      * of the {@code user.home} system property. Otherwise, the path is returned
      * unchanged.
-     * </p>
+     *
      *
      * @param path the path to expand
      * @return the path with tilde expanded, or the original path if no tilde present
@@ -244,7 +223,7 @@ public class VerifyCommand implements Callable<Integer> {
      * <p>
      * The GPG key is set to {@code null} to use GPG's default verification behavior,
      * which accepts signatures from any key in the keyring.
-     * </p>
+     *
      *
      * @return a configured GpgSigner instance
      */
@@ -259,7 +238,7 @@ public class VerifyCommand implements Callable<Integer> {
      * If it is not available, {@code null} is returned, which will cause the
      * {@link HybridVerifier} to skip PQC verification and report
      * {@link VerificationResult#NOT_PRESENT} for the PQC component.
-     * </p>
+     *
      *
      * @param sqHomeDir the Sequoia home directory path
      * @return a configured SqRunner instance, or null if sq is not available
@@ -276,11 +255,11 @@ public class VerifyCommand implements Callable<Integer> {
      * <p>
      * The report includes:
      * <ul>
-     *   <li>Classic (GPG) signature verification result</li>
-     *   <li>PQC signature verification result</li>
-     *   <li>Overall assessment based on the verification mode</li>
+     * <li>Classic (GPG) signature verification result</li>
+     * <li>PQC signature verification result</li>
+     * <li>Overall assessment based on the verification mode</li>
      * </ul>
-     * </p>
+     *
      *
      * @param report the verification report to print
      */
@@ -293,11 +272,11 @@ public class VerifyCommand implements Callable<Integer> {
      * <p>
      * In strict mode, both signatures must pass (exit code 0 only if
      * {@link VerificationReport#isStrictPass()} returns true).
-     * </p>
+     *
      * <p>
      * In transitional mode, only the classical signature must pass (exit code 0 if
      * {@link VerificationReport#isTransitionalPass()} returns true).
-     * </p>
+     *
      *
      * @param report the verification report
      * @return 0 if verification passed according to the mode, 1 otherwise
@@ -315,7 +294,7 @@ public class VerifyCommand implements Callable<Integer> {
      * <p>
      * This method extracts the most relevant error message from the exception
      * chain and displays it in a clear format.
-     * </p>
+     *
      *
      * @param e the exception that occurred during verification
      */
@@ -335,7 +314,7 @@ public class VerifyCommand implements Callable<Integer> {
      * <p>
      * If the exception has a message, it is returned. Otherwise, the simple
      * class name of the exception is returned.
-     * </p>
+     *
      *
      * @param e the exception to extract the message from
      * @return a user-friendly error message

@@ -538,38 +538,24 @@ This PoC uses `io.github.aloubyansky.pqc.maven` as its groupId. The code is stru
 
 ## Releasing
 
-The project includes a `release` profile in the parent POM that handles PQC signing, source/javadoc JARs, and version management. The release plugin is configured with `pushChanges=false`, `localCheckout=true`, and `remoteTagging=false` — commits and tags stay local until you push manually.
+The project includes a `release` profile in the parent POM that handles GPG signing, source/javadoc JARs, and version management. The release plugin is configured with `pushChanges=false`, `localCheckout=true`, and `remoteTagging=false` — commits and tags stay local until you push manually.
 
-### First release (bootstrap)
-
-The `pqc-sign-maven-plugin` must be available in the local repository before it can sign artifacts. For the very first release, install it first:
+### Release commands
 
 ```bash
-# 1. Install the plugin into the local repo
-mvn clean install -DskipTests
+# Prepare the release (bumps version, creates tag)
+mvn release:prepare -Prelease
 
-# 2. Prepare the release (bumps version, creates tag)
-mvn release:prepare -Prelease -Dpqc.fingerprint=$PQC_FINGERPRINT
-
-# 3. Perform the release (builds from tag, signs, deploys)
-mvn release:perform -Prelease -Dpqc.fingerprint=$PQC_FINGERPRINT
-```
-
-### Subsequent releases
-
-Once a version is published, you can pin `pqc.sign.version` to the last released version instead of bootstrapping from `${project.version}`:
-
-```bash
-mvn release:prepare -Prelease -Dpqc.fingerprint=$PQC_FINGERPRINT -Dpqc.sign.version=0.1.0
-mvn release:perform -Prelease -Dpqc.fingerprint=$PQC_FINGERPRINT -Dpqc.sign.version=0.1.0
+# Perform the release (builds from tag, signs, deploys)
+mvn release:perform -Prelease
 ```
 
 ### What the release profile does
 
-- **maven-release-plugin** — version bumps, git tag (format: `0.1.0`), local checkout
+- **maven-release-plugin** — version bumps, git tag (format: `0.0.1`), local checkout
 - **maven-source-plugin** — attaches `-sources.jar`
 - **maven-javadoc-plugin** — attaches `-javadoc.jar`
-- **pqc-sign-maven-plugin** — hybrid PQC + GPG signing of all artifacts
+- **maven-gpg-plugin** — GPG signing of all artifacts
 
 ### After the release
 

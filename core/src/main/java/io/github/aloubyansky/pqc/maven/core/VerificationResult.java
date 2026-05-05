@@ -7,7 +7,7 @@ package io.github.aloubyansky.pqc.maven.core;
  * classic (GPG) and PQC (Sequoia) signature verification. It distinguishes
  * between successful verification, failed verification, missing keys, and
  * absent signatures.
- * </p>
+ *
  *
  * @see HybridVerifier
  * @see VerificationReport
@@ -19,7 +19,7 @@ public enum VerificationResult {
      * <p>
      * This indicates that the signature was successfully verified against the
      * expected public key and the signed data matches the signature.
-     * </p>
+     *
      */
     PASS,
 
@@ -28,11 +28,11 @@ public enum VerificationResult {
      * <p>
      * This indicates that either:
      * <ul>
-     *   <li>The signature is invalid (does not match the signed data)</li>
-     *   <li>The signature was created by a different key than expected</li>
-     *   <li>The signed data has been modified since signing</li>
+     * <li>The signature is invalid (does not match the signed data)</li>
+     * <li>The signature was created by a different key than expected</li>
+     * <li>The signed data has been modified since signing</li>
      * </ul>
-     * </p>
+     *
      */
     FAIL,
 
@@ -43,7 +43,7 @@ public enum VerificationResult {
      * public key needed to verify the signature. This is distinct from
      * {@link #FAIL}, as it represents a configuration issue rather than an
      * invalid signature.
-     * </p>
+     *
      */
     NO_KEY,
 
@@ -54,7 +54,7 @@ public enum VerificationResult {
      * contains only a classic GPG signature and no PQC signature. This allows
      * {@link VerificationReport} to distinguish between classic-only signatures
      * and hybrid signatures where the PQC component failed.
-     * </p>
+     *
      */
     NOT_PRESENT
 }

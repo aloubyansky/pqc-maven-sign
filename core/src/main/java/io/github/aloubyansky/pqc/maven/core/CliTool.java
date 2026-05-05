@@ -14,23 +14,27 @@ import java.util.concurrent.TimeUnit;
  * This class provides a simple interface for running external processes via
  * {@link ProcessBuilder}, capturing both stdout and stderr, and handling
  * exit codes. It supports both checked and unchecked execution modes.
- * </p>
+ *
  * <p>
  * Example usage:
- * <pre>{@code
- * // Unchecked execution - returns result regardless of exit code
- * Result result = CliTool.run("echo", "hello");
- * if (result.exitCode() == 0) {
- *     System.out.println(result.stdout());
- * }
  *
- * // Checked execution - throws CliException on non-zero exit
- * try {
- *     CliTool.runChecked("gpg", "--version");
- * } catch (CliException e) {
- *     System.err.println("Command failed: " + e.getMessage());
+ * <pre>
+ * {
+ *     &#64;code
+ *     // Unchecked execution - returns result regardless of exit code
+ *     Result result = CliTool.run("echo", "hello");
+ *     if (result.exitCode() == 0) {
+ *         System.out.println(result.stdout());
+ *     }
+ *
+ *     // Checked execution - throws CliException on non-zero exit
+ *     try {
+ *         CliTool.runChecked("gpg", "--version");
+ *     } catch (CliException e) {
+ *         System.err.println("Command failed: " + e.getMessage());
+ *     }
  * }
- * }</pre>
+ * </pre>
  */
 public final class CliTool {
 
@@ -49,7 +53,7 @@ public final class CliTool {
      * <p>
      * The process is given up to 60 seconds to complete. Both stdout and stderr
      * are captured and returned in the {@link Result}.
-     * </p>
+     *
      *
      * @param command the command and its arguments to execute
      * @return a {@link Result} containing exit code, stdout, and stderr
@@ -80,7 +84,7 @@ public final class CliTool {
      * This is a convenience method for cases where command failure should be
      * treated as an exceptional condition. The exception message includes the
      * command, exit code, and stderr output.
-     * </p>
+     *
      *
      * @param command the command and its arguments to execute
      * @return a {@link Result} containing exit code 0, stdout, and stderr
@@ -95,11 +99,10 @@ public final class CliTool {
         if (result.exitCode() != 0) {
             String commandStr = String.join(" ", command);
             String message = String.format(
-                "Command '%s' failed with exit code %d%s",
-                commandStr,
-                result.exitCode(),
-                result.stderr().isEmpty() ? "" : ": " + result.stderr().trim()
-            );
+                    "Command '%s' failed with exit code %d%s",
+                    commandStr,
+                    result.exitCode(),
+                    result.stderr().isEmpty() ? "" : ": " + result.stderr().trim());
             throw new CliException(message, result.exitCode());
         }
 
@@ -146,8 +149,7 @@ public final class CliTool {
             if (!completed) {
                 process.destroyForcibly();
                 throw new RuntimeException(
-                    "Process did not complete within " + TIMEOUT_SECONDS + " seconds"
-                );
+                        "Process did not complete within " + TIMEOUT_SECONDS + " seconds");
             }
             return process.exitValue();
         } catch (InterruptedException e) {
@@ -162,7 +164,7 @@ public final class CliTool {
      * <p>
      * This method reads the stream line by line, joining them with system
      * line separators. The stream is automatically closed after reading.
-     * </p>
+     *
      *
      * @param inputStream the stream to read from
      * @return the complete content of the stream as a String

@@ -10,33 +10,40 @@ import java.nio.file.Path;
  * <p>
  * This class coordinates two separate signing operations:
  * <ol>
- *   <li>Classical signature using GPG</li>
- *   <li>Post-quantum signature using Sequoia's ML-DSA-65 + Ed25519 cipher suite</li>
+ * <li>Classical signature using GPG</li>
+ * <li>Post-quantum signature using Sequoia's ML-DSA-65 + Ed25519 cipher suite</li>
  * </ol>
  * The two ASCII-armored signatures are then combined into a single armored block
  * using {@link AscCombiner}, resulting in a hybrid signature that provides both
  * classical and post-quantum security.
- * </p>
+ *
  * <p>
  * Example usage with real tools:
- * <pre>{@code
- * GpgSigner gpg = new GpgSigner(null);
- * SqRunner sq = new SqRunner(Path.of("/tmp/sq-keys"));
- * String pqcFingerprint = sq.generateKey("Alice <alice@example.com>");
  *
- * HybridSigner signer = HybridSigner.create(gpg, sq, pqcFingerprint);
- * signer.sign(Path.of("artifact.jar"), Path.of("artifact.jar.asc"));
- * }</pre>
+ * <pre>
+ * {
+ *     &#64;code
+ *     GpgSigner gpg = new GpgSigner(null);
+ *     SqRunner sq = new SqRunner(Path.of("/tmp/sq-keys"));
+ *     String pqcFingerprint = sq.generateKey("Alice &lt;alice@example.com&gt;");
+ *
+ *     HybridSigner signer = HybridSigner.create(gpg, sq, pqcFingerprint);
+ *     signer.sign(Path.of("artifact.jar"), Path.of("artifact.jar.asc"));
+ * }
+ * </pre>
  * <p>
  * For testing purposes, the constructor accepts functional interfaces that can
  * be easily mocked:
- * <pre>{@code
- * HybridSigner signer = new HybridSigner(
- *     (file, output) -> mockClassicSign(file, output),
- *     (file, output, fp) -> mockPqcSign(file, output, fp)
- * );
- * }</pre>
- * </p>
+ *
+ * <pre>
+ * {
+ *     &#64;code
+ *     HybridSigner signer = new HybridSigner(
+ *             (file, output) -> mockClassicSign(file, output),
+ *             (file, output, fp) -> mockPqcSign(file, output, fp));
+ * }
+ * </pre>
+ *
  *
  * @see AscCombiner
  * @see GpgSigner
@@ -49,7 +56,7 @@ public class HybridSigner {
      * <p>
      * Implementations should create a detached ASCII-armored signature for the
      * provided artifact file and write it to the output path.
-     * </p>
+     *
      */
     @FunctionalInterface
     public interface ClassicSignFn {
@@ -69,7 +76,7 @@ public class HybridSigner {
      * <p>
      * Implementations should create a detached ASCII-armored signature using
      * the specified key fingerprint and write it to the output path.
-     * </p>
+     *
      */
     @FunctionalInterface
     public interface PqcSignFn {
@@ -95,7 +102,7 @@ public class HybridSigner {
      * This constructor is primarily intended for testing with mock signers.
      * For production use, consider using {@link #create(GpgSigner, SqRunner, String)}
      * instead.
-     * </p>
+     *
      *
      * @param classicSign the classical signing function
      * @param pqcSign the post-quantum signing function
@@ -116,7 +123,7 @@ public class HybridSigner {
      * Sets the PQC key fingerprint to use for signing.
      * <p>
      * This method supports method chaining for convenient configuration.
-     * </p>
+     *
      *
      * @param fingerprint the 64-character hexadecimal fingerprint
      * @return this HybridSigner instance for method chaining
@@ -135,14 +142,14 @@ public class HybridSigner {
      * <p>
      * This method performs the following steps:
      * <ol>
-     *   <li>Creates temporary files for individual signatures</li>
-     *   <li>Generates classical signature using GPG</li>
-     *   <li>Generates PQC signature using Sequoia</li>
-     *   <li>Combines both signatures into a single armored block</li>
-     *   <li>Writes the combined signature to the output file</li>
-     *   <li>Cleans up temporary files</li>
+     * <li>Creates temporary files for individual signatures</li>
+     * <li>Generates classical signature using GPG</li>
+     * <li>Generates PQC signature using Sequoia</li>
+     * <li>Combines both signatures into a single armored block</li>
+     * <li>Writes the combined signature to the output file</li>
+     * <li>Cleans up temporary files</li>
      * </ol>
-     * </p>
+     *
      *
      * @param artifactFile the file to sign
      * @param outputAsc the path where the combined .asc signature will be written
@@ -174,7 +181,7 @@ public class HybridSigner {
      * Factory method that creates a HybridSigner wired with real GPG and Sequoia tools.
      * <p>
      * This is the recommended way to create a HybridSigner for production use.
-     * </p>
+     *
      *
      * @param gpg the GpgSigner instance to use for classical signing
      * @param sq the SqRunner instance to use for PQC signing
@@ -194,7 +201,7 @@ public class HybridSigner {
         }
 
         return new HybridSigner(gpg::sign, sq::sign)
-            .withPqcFingerprint(pqcFingerprint);
+                .withPqcFingerprint(pqcFingerprint);
     }
 
     /**
@@ -214,8 +221,7 @@ public class HybridSigner {
         }
         if (pqcFingerprint == null || pqcFingerprint.isEmpty()) {
             throw new IllegalStateException(
-                "pqcFingerprint must be set before signing (use withPqcFingerprint())"
-            );
+                    "pqcFingerprint must be set before signing (use withPqcFingerprint())");
         }
     }
 

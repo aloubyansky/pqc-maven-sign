@@ -3,6 +3,11 @@ package io.github.aloubyansky.pqc.maven.plugin;
 import io.github.aloubyansky.pqc.maven.core.GpgSigner;
 import io.github.aloubyansky.pqc.maven.core.HybridSigner;
 import io.github.aloubyansky.pqc.maven.core.SqRunner;
+import java.io.File;
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.List;
+import javax.inject.Inject;
 import org.apache.maven.artifact.Artifact;
 import org.apache.maven.plugin.AbstractMojo;
 import org.apache.maven.plugin.MojoExecutionException;
@@ -12,12 +17,6 @@ import org.apache.maven.plugins.annotations.Parameter;
 import org.apache.maven.project.MavenProject;
 import org.apache.maven.project.MavenProjectHelper;
 
-import javax.inject.Inject;
-import java.io.File;
-import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.List;
-
 /**
  * Maven plugin goal that creates hybrid signatures combining classical GPG
  * and post-quantum cryptography for all project artifacts.
@@ -26,9 +25,10 @@ import java.util.List;
  * files for the main artifact, POM, and all attached artifacts. Each signature
  * contains both a classical GPG signature (for backward compatibility) and a
  * PQC signature using ML-DSA-65 + Ed25519.
- * </p>
+ *
  * <p>
  * Example configuration:
+ *
  * <pre>{@code
  * <plugin>
  *   <groupId>io.github.aloubyansky.pqc.maven</groupId>
@@ -73,7 +73,7 @@ public class SignMojo extends AbstractMojo {
      * <p>
      * This corresponds to the GPG --local-user option. If not specified,
      * GPG will use its default key from the keyring.
-     * </p>
+     *
      */
     @Parameter(property = "gpg.keyname")
     private String gpgKeyName;
@@ -83,7 +83,7 @@ public class SignMojo extends AbstractMojo {
      * <p>
      * This is required for PQC signing. The key must exist in the Sequoia
      * home directory specified by {@link #sqHome}.
-     * </p>
+     *
      */
     @Parameter(property = "pqc.fingerprint", required = true)
     private String pqcFingerprint;
@@ -92,7 +92,7 @@ public class SignMojo extends AbstractMojo {
      * Path to the Sequoia home directory containing PQC keys.
      * <p>
      * If not specified, defaults to {@code ~/.local/share/sequoia}.
-     * </p>
+     *
      */
     @Parameter(property = "pqc.sqHome")
     private File sqHome;
@@ -102,12 +102,12 @@ public class SignMojo extends AbstractMojo {
      * <p>
      * This method orchestrates the entire signing workflow:
      * <ol>
-     *   <li>Resolves the Sequoia home directory</li>
-     *   <li>Creates the hybrid signer</li>
-     *   <li>Collects all files to sign (main artifact, POM, attached artifacts)</li>
-     *   <li>Signs each file and attaches the signature</li>
+     * <li>Resolves the Sequoia home directory</li>
+     * <li>Creates the hybrid signer</li>
+     * <li>Collects all files to sign (main artifact, POM, attached artifacts)</li>
+     * <li>Signs each file and attaches the signature</li>
      * </ol>
-     * </p>
+     *
      *
      * @throws MojoExecutionException if signing fails for any artifact
      */
@@ -133,7 +133,7 @@ public class SignMojo extends AbstractMojo {
      * <p>
      * The default location is {@code ~/.local/share/sequoia}, which matches
      * the Sequoia CLI tool's default behavior.
-     * </p>
+     *
      *
      * @return the resolved Sequoia home path
      * @throws MojoExecutionException if the path cannot be resolved
@@ -146,8 +146,7 @@ public class SignMojo extends AbstractMojo {
         String userHome = System.getProperty("user.home");
         if (userHome == null || userHome.isEmpty()) {
             throw new MojoExecutionException(
-                "Cannot resolve Sequoia home: user.home property not set"
-            );
+                    "Cannot resolve Sequoia home: user.home property not set");
         }
 
         return Path.of(userHome, ".local", "share", "sequoia");
@@ -158,7 +157,7 @@ public class SignMojo extends AbstractMojo {
      * <p>
      * This method initializes the signer with the configured GPG key name
      * and PQC fingerprint.
-     * </p>
+     *
      *
      * @param sequoiaHome the path to the Sequoia home directory
      * @return a configured HybridSigner instance
@@ -179,12 +178,12 @@ public class SignMojo extends AbstractMojo {
      * <p>
      * This includes:
      * <ul>
-     *   <li>The main artifact file (e.g., JAR, WAR)</li>
-     *   <li>The project POM file</li>
-     *   <li>All attached artifacts (sources, javadoc, etc.)</li>
+     * <li>The main artifact file (e.g., JAR, WAR)</li>
+     * <li>The project POM file</li>
+     * <li>All attached artifacts (sources, javadoc, etc.)</li>
      * </ul>
      * Existing .asc signature files are excluded to prevent double-signing.
-     * </p>
+     *
      *
      * @return a list of FileToSign instances
      */
@@ -215,7 +214,7 @@ public class SignMojo extends AbstractMojo {
                 String classifier = getClassifier(artifact);
                 files.add(new FileToSign(file, extension, classifier));
                 getLog().debug("Added attached artifact: " + file.getName() +
-                    " (classifier=" + classifier + ")");
+                        " (classifier=" + classifier + ")");
             }
         }
 
@@ -228,7 +227,7 @@ public class SignMojo extends AbstractMojo {
      * This method creates a .asc file containing the hybrid signature and
      * attaches it to the Maven project so it will be deployed along with
      * the signed artifact.
-     * </p>
+     *
      *
      * @param fileToSign the file to sign
      * @param signer the hybrid signer to use
@@ -255,7 +254,7 @@ public class SignMojo extends AbstractMojo {
      * <p>
      * The signature is attached with the same extension and classifier as
      * the original file, plus an ".asc" suffix.
-     * </p>
+     *
      *
      * @param fileToSign the original file metadata
      * @param signatureFile the signature file to attach
@@ -278,7 +277,7 @@ public class SignMojo extends AbstractMojo {
      * <p>
      * The classifier is used to distinguish between different variants of
      * the same artifact (e.g., sources, javadoc).
-     * </p>
+     *
      *
      * @param artifact the artifact to extract from
      * @return the classifier, or null if none
@@ -293,7 +292,7 @@ public class SignMojo extends AbstractMojo {
      * <p>
      * This extracts everything after the last dot in the filename.
      * If there's no dot, returns the entire filename.
-     * </p>
+     *
      *
      * @param file the file to extract from
      * @return the extension (without the leading dot)
@@ -309,7 +308,7 @@ public class SignMojo extends AbstractMojo {
      * <p>
      * This bundles together the file, its extension, and classifier so they
      * can be easily passed around during the signing process.
-     * </p>
+     *
      */
     private static class FileToSign {
         final File file;
