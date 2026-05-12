@@ -52,6 +52,7 @@
         <maven.compiler.source>${maven.compiler.release}</maven.compiler.source>
         <maven.compiler.target>${maven.compiler.release}</maven.compiler.target>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <readme.update.skip>true</readme.update.skip>
         <quarkus.platform.version>3.35.2</quarkus.platform.version>
         <surefire-plugin.version>3.5.4</surefire-plugin.version>
     </properties>
@@ -149,6 +150,7 @@
                             <pushChanges>false</pushChanges>
                             <localCheckout>true</localCheckout>
                             <remoteTagging>false</remoteTagging>
+                            <arguments>-Dreadme.update.skip=false</arguments>
                         </configuration>
                     </plugin>
                     <plugin>
@@ -238,6 +240,55 @@
                                 <goals>
                                     <goal>sort</goal>
                                 </goals>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+        <profile>
+            <id>update-readme</id>
+            <activation>
+                <file>
+                    <exists>README.md</exists>
+                </file>
+            </activation>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.codehaus.mojo</groupId>
+                        <artifactId>exec-maven-plugin</artifactId>
+                        <version>3.5.0</version>
+                        <executions>
+                            <execution>
+                                <id>update-readme-version</id>
+                                <phase>validate</phase>
+                                <goals>
+                                    <goal>exec</goal>
+                                </goals>
+                                <configuration>
+                                    <skip>${readme.update.skip}</skip>
+                                    <executable>bash</executable>
+                                    <arguments>
+                                        <argument>-c</argument>
+                                        <argument>sed -i '/pqc-sign-maven-plugin/{n;s/&lt;version&gt;[^&lt;]*&lt;\/version&gt;/&lt;version&gt;${project.version}&lt;\/version&gt;/}' ${project.basedir}/README.md</argument>
+                                    </arguments>
+                                </configuration>
+                            </execution>
+                            <execution>
+                                <id>commit-readme-version</id>
+                                <phase>validate</phase>
+                                <goals>
+                                    <goal>exec</goal>
+                                </goals>
+                                <configuration>
+                                    <skip>${readme.update.skip}</skip>
+                                    <executable>bash</executable>
+                                    <arguments>
+                                        <argument>-c</argument>
+                                        <argument>cd ${project.basedir} &amp;&amp; git diff --quiet README.md 2>/dev/null || (git add README.md &amp;&amp; git commit -m "Update README.md plugin version to ${project.version}")</argument>
+                                    </arguments>
+                                </configuration>
                             </execution>
                         </executions>
                     </plugin>
