@@ -3,7 +3,7 @@
     <modelVersion>4.0.0</modelVersion>
     <groupId>io.github.aloubyansky.pqc.maven</groupId>
     <artifactId>pqc-maven-parent</artifactId>
-    <version>0.0.2-SNAPSHOT</version>
+    <version>0.0.2</version>
     <packaging>pom</packaging>
     <name>PQC Sign :: Parent</name>
     <description>Tooling for Maven artifact PQC-based signing and signature verification</description>
@@ -18,7 +18,7 @@
         <connection>scm:git:git://github.com/aloubyansky/pqc-maven-sign.git</connection>
         <developerConnection>scm:git:ssh://github.com/aloubyansky/pqc-maven-sign.git</developerConnection>
         <url>https://github.com/aloubyansky/pqc-maven-sign</url>
-      <tag>HEAD</tag>
+      <tag>0.0.2</tag>
   </scm>
     <developers>
         <developer>
@@ -286,7 +286,7 @@
                                     <executable>bash</executable>
                                     <arguments>
                                         <argument>-c</argument>
-                                        <argument>cd ${project.basedir} &amp;&amp; git diff --quiet README.md 2>/dev/null || (git add README.md &amp;&amp; git commit -m "Update README.md plugin version to ${project.version}")</argument>
+                                        <argument>cd ${project.basedir} &amp;&amp; git diff --quiet README.md 2&gt;/dev/null || (git add README.md &amp;&amp; git commit -m "Update README.md plugin version to ${project.version}")</argument>
                                     </arguments>
                                 </configuration>
                             </execution>
