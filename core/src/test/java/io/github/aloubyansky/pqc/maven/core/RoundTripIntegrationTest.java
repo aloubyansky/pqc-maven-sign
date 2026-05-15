@@ -57,7 +57,7 @@ class RoundTripIntegrationTest {
      * @return true if both {@code gpg} and PQC-enabled {@code sq} are available
      */
     static boolean toolsAvailable() {
-        if (!GpgSigner.isAvailable() || !SqRunner.isAvailable()) {
+        if (!GpgRunner.isAvailable() || !SqRunner.isAvailable()) {
             return false;
         }
         // Check that sq actually supports PQC cipher suites
@@ -124,7 +124,7 @@ class RoundTripIntegrationTest {
         signer.sign(artifact, signature);
 
         // Act: Verify the signature
-        VerificationReport report = verifier.verify(artifact, signature);
+        VerificationReport report = verifier.verify(artifact, signature, PqcKeyConfig.fingerprint(pqcFingerprint));
 
         // Assert: Both classic and PQC signatures should pass
         assertEquals(VerificationResult.PASS, report.classicResult(),
@@ -149,7 +149,7 @@ class RoundTripIntegrationTest {
         signer.sign(artifact, signature);
 
         HybridVerifier verifier = createHybridVerifier();
-        VerificationReport report = verifier.verify(artifact, signature);
+        VerificationReport report = verifier.verify(artifact, signature, PqcKeyConfig.fingerprint(pqcFingerprint));
 
         assertEquals(VerificationResult.PASS, report.classicResult(),
                 "Classic (GPG) signature should be valid in merged mode");
@@ -245,7 +245,7 @@ class RoundTripIntegrationTest {
 
         // Act: Verify the signature
         HybridVerifier verifier = createHybridVerifier();
-        VerificationReport report = verifier.verify(artifact, signature);
+        VerificationReport report = verifier.verify(artifact, signature, PqcKeyConfig.fingerprint(pqcFingerprint));
 
         // Assert: Both signatures should fail due to tampering
         assertEquals(VerificationResult.FAIL, report.classicResult(),
@@ -288,9 +288,9 @@ class RoundTripIntegrationTest {
      * @return a configured HybridSigner instance
      */
     private HybridSigner createHybridSigner() {
-        GpgSigner gpg = new GpgSigner(null); // null = use default GPG key
+        GpgRunner gpg = new GpgRunner(); // null = use default GPG key
         SqRunner sq = new SqRunner(sqHome);
-        return HybridSigner.create(gpg, sq, pqcFingerprint);
+        return new HybridSigner(gpg, sq, pqcFingerprint);
     }
 
     /**
@@ -304,8 +304,8 @@ class RoundTripIntegrationTest {
      * @return a configured HybridVerifier instance
      */
     private HybridVerifier createHybridVerifier() {
-        GpgSigner gpg = new GpgSigner(null); // null = use default GPG key
+        GpgRunner gpg = new GpgRunner();
         SqRunner sq = new SqRunner(sqHome);
-        return new HybridVerifier(gpg, sq, pqcFingerprint);
+        return new HybridVerifier(gpg, sq);
     }
 }

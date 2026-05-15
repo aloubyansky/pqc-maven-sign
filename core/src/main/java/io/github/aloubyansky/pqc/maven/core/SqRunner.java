@@ -1,16 +1,12 @@
 package io.github.aloubyansky.pqc.maven.core;
 
-import java.io.BufferedReader;
 import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.TimeUnit;
+import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -61,11 +57,24 @@ import java.util.regex.Pattern;
  */
 public class SqRunner {
 
-    private static final int TIMEOUT_SECONDS = 60;
     private static final Pattern FINGERPRINT_PATTERN = Pattern.compile("(?i)(?:fingerprint:?\\s*)?([0-9A-F]{64})");
+    private static final String SEQUOIA_HOME = "SEQUOIA_HOME";
 
     private final String sqExecutable;
     private final Path sequoiaHome;
+
+    /**
+     * Returns the default Sequoia home directory ({@code ~/.local/share/sequoia}).
+     *
+     * @return the default path, or null if {@code user.home} is not set
+     */
+    public static Path defaultHome() {
+        String userHome = System.getProperty("user.home");
+        if (userHome == null || userHome.isEmpty()) {
+            return null;
+        }
+        return Path.of(userHome, ".local", "share", "sequoia");
+    }
 
     /**
      * Constructs an SqRunner using the default "sq" executable.
@@ -111,7 +120,7 @@ public class SqRunner {
      * @param userId the user ID for the key (e.g., "Alice &lt;alice@example.com&gt;")
      * @return the 64-character hexadecimal fingerprint of the generated key
      * @throws IllegalArgumentException if userId is null or empty
-     * @throws CliTool.CliException if the sq command fails
+     * @throws RuntimeException if the sq command fails
      * @throws IllegalStateException if the fingerprint cannot be parsed from the output
      */
     public String generateKey(String userId) {
@@ -129,7 +138,11 @@ public class SqRunner {
         };
 
         CliTool.Result result = runSq(args);
-        // sq may output key info to stdout or stderr depending on mode
+        if (result.exitCode() != 0) {
+            throw new RuntimeException("'" + formatCommand(args)
+                    + "' failed with exit code " + result.exitCode()
+                    + (result.stderr().isEmpty() ? "" : ": " + result.stderr().trim()));
+        }
         String combinedOutput = result.stdout() + "\n" + result.stderr();
         return extractFingerprint(combinedOutput);
     }
@@ -147,7 +160,7 @@ public class SqRunner {
      * @param fingerprint the fingerprint of the signing key
      * @return the armored signature content as a String
      * @throws IllegalArgumentException if any parameter is null or if fingerprint is empty
-     * @throws CliTool.CliException if the sq command fails
+     * @throws RuntimeException if the sq command fails
      * @throws java.io.UncheckedIOException if reading the signature file fails
      */
     public String sign(Path artifactFile, Path outputSig, String fingerprint) {
@@ -169,7 +182,12 @@ public class SqRunner {
                 artifactFile.toString()
         };
 
-        runSq(args);
+        CliTool.Result result = runSq(args);
+        if (result.exitCode() != 0) {
+            throw new RuntimeException("'" + formatCommand(args)
+                    + "' failed with exit code " + result.exitCode()
+                    + (result.stderr().isEmpty() ? "" : ": " + result.stderr().trim()));
+        }
         return readSignatureFile(outputSig);
     }
 
@@ -197,13 +215,42 @@ public class SqRunner {
         }
 
         String[] args = buildVerifyCommand(artifactFile, signatureFile, signerFingerprint);
+        return runSq(args).exitCode() == 0;
+    }
 
-        try {
-            runSq(args);
-            return true;
-        } catch (CliTool.CliException e) {
-            return false;
+    /**
+     * Verifies a detached signature for the specified artifact file using a certificate file.
+     * <p>
+     * This method runs:
+     * {@code sq verify --signer-file <certFile> --signature-file <signatureFile>
+     * <artifactFile>}
+     *
+     *
+     * @param artifactFile the file that was signed
+     * @param signatureFile the detached signature file
+     * @param certFile the certificate file containing the signer's public key
+     * @return true if the signature is valid, false otherwise
+     * @throws IllegalArgumentException if artifactFile, signatureFile, or certFile is null
+     */
+    public boolean verifyCertFile(Path artifactFile, Path signatureFile, Path certFile) {
+        if (artifactFile == null) {
+            throw new IllegalArgumentException("artifactFile cannot be null");
         }
+        if (signatureFile == null) {
+            throw new IllegalArgumentException("signatureFile cannot be null");
+        }
+        if (certFile == null) {
+            throw new IllegalArgumentException("certFile cannot be null");
+        }
+
+        String[] args = {
+                "verify",
+                "--signer-file", certFile.toString(),
+                "--signature-file", signatureFile.toString(),
+                artifactFile.toString()
+        };
+
+        return runSq(args).exitCode() == 0;
     }
 
     /**
@@ -219,7 +266,7 @@ public class SqRunner {
      * @param fingerprint the fingerprint of the certificate to export
      * @return the armored certificate as a String
      * @throws IllegalArgumentException if fingerprint is null or empty
-     * @throws CliTool.CliException if the sq command fails
+     * @throws RuntimeException if the sq command fails
      */
     public String exportCert(String fingerprint) {
         if (fingerprint == null || fingerprint.isEmpty()) {
@@ -232,6 +279,11 @@ public class SqRunner {
         };
 
         CliTool.Result result = runSq(args);
+        if (result.exitCode() != 0) {
+            throw new RuntimeException("'" + formatCommand(args)
+                    + "' failed with exit code " + result.exitCode()
+                    + (result.stderr().isEmpty() ? "" : ": " + result.stderr().trim()));
+        }
         return result.stdout();
     }
 
@@ -263,133 +315,26 @@ public class SqRunner {
      *
      * @param args the sq command arguments (without the executable name)
      * @return the result of the command execution
-     * @throws CliTool.CliException if the exit code is non-zero
      * @throws UncheckedIOException if an I/O error occurs during execution
      * @throws RuntimeException if the process is interrupted or times out
      */
     private CliTool.Result runSq(String... args) {
-        List<String> command = buildCommand(args);
-        ProcessBuilder pb = new ProcessBuilder(command);
-        configureEnvironment(pb);
-
-        Process process = startProcess(pb);
-        // Read stdout and stderr concurrently to avoid pipe buffer deadlock
-        CompletableFuture<String> stderrFuture = CompletableFuture.supplyAsync(
-                () -> readStream(process.getErrorStream()));
-        String stdout = readStream(process.getInputStream());
-        String stderr = stderrFuture.join();
-        int exitCode = waitForCompletion(process);
-
-        CliTool.Result result = new CliTool.Result(exitCode, stdout, stderr);
-        checkExitCode(result, command);
-
-        return result;
+        String[] command = buildCommand(args);
+        return CliTool.run(Map.of(SEQUOIA_HOME, sequoiaHome.toString()), command);
     }
 
-    /**
-     * Builds the complete command list by prepending the sq executable.
-     *
-     * @param args the sq command arguments
-     * @return the complete command list
-     */
-    private List<String> buildCommand(String... args) {
-        List<String> command = new ArrayList<>();
+    private String formatCommand(String... args) {
+        return String.join(" ", buildCommand(args));
+    }
+
+    private String[] buildCommand(String... args) {
+        List<String> command = new ArrayList<>(args.length + 2);
         command.add(sqExecutable);
         command.add("--overwrite");
         for (String arg : args) {
             command.add(arg);
         }
-        return command;
-    }
-
-    /**
-     * Configures the ProcessBuilder environment with SEQUOIA_HOME.
-     *
-     * @param pb the ProcessBuilder to configure
-     */
-    private void configureEnvironment(ProcessBuilder pb) {
-        pb.environment().put("SEQUOIA_HOME", sequoiaHome.toString());
-    }
-
-    /**
-     * Starts the process using the provided ProcessBuilder.
-     *
-     * @param pb the ProcessBuilder configured with the command
-     * @return the started Process
-     * @throws UncheckedIOException if an I/O error occurs
-     */
-    private Process startProcess(ProcessBuilder pb) {
-        try {
-            return pb.start();
-        } catch (IOException e) {
-            throw new UncheckedIOException("Failed to start sq process", e);
-        }
-    }
-
-    /**
-     * Waits for the process to complete within the timeout period.
-     *
-     * @param process the process to wait for
-     * @return the exit code of the process
-     * @throws RuntimeException if the process times out or is interrupted
-     */
-    private int waitForCompletion(Process process) {
-        try {
-            boolean completed = process.waitFor(TIMEOUT_SECONDS, TimeUnit.SECONDS);
-            if (!completed) {
-                process.destroyForcibly();
-                throw new RuntimeException(
-                        "sq process did not complete within " + TIMEOUT_SECONDS + " seconds");
-            }
-            return process.exitValue();
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            process.destroyForcibly();
-            throw new RuntimeException("sq process was interrupted", e);
-        }
-    }
-
-    /**
-     * Reads all content from an InputStream and returns it as a String.
-     *
-     * @param inputStream the stream to read from
-     * @return the complete content of the stream as a String
-     * @throws UncheckedIOException if an I/O error occurs
-     */
-    private String readStream(InputStream inputStream) {
-        try (BufferedReader reader = new BufferedReader(
-                new InputStreamReader(inputStream))) {
-            StringBuilder sb = new StringBuilder();
-            String line;
-            while ((line = reader.readLine()) != null) {
-                if (sb.length() > 0) {
-                    sb.append(System.lineSeparator());
-                }
-                sb.append(line);
-            }
-            return sb.toString();
-        } catch (IOException e) {
-            throw new UncheckedIOException("Failed to read sq output stream", e);
-        }
-    }
-
-    /**
-     * Checks the exit code and throws CliException if non-zero.
-     *
-     * @param result the command result
-     * @param command the command that was executed
-     * @throws CliTool.CliException if the exit code is non-zero
-     */
-    private void checkExitCode(CliTool.Result result, List<String> command) {
-        if (result.exitCode() != 0) {
-            String commandStr = String.join(" ", command);
-            String message = String.format(
-                    "Command '%s' failed with exit code %d%s",
-                    commandStr,
-                    result.exitCode(),
-                    result.stderr().isEmpty() ? "" : ": " + result.stderr().trim());
-            throw new CliTool.CliException(message, result.exitCode());
-        }
+        return command.toArray(new String[0]);
     }
 
     /**

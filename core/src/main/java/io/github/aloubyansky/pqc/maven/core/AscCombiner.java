@@ -23,6 +23,23 @@ public final class AscCombiner {
     private static final String END_MARKER = "-----END PGP ";
 
     /**
+     * How to combine classic and PQC signatures in a single .asc file.
+     */
+    public enum CombineMode {
+        /**
+         * Two separate armored blocks in the same file (classic first).
+         * Compatible with Maven Central and other verifiers that only
+         * read the first armored block.
+         */
+        SEPARATE_BLOCKS,
+        /**
+         * Dearmor both, concatenate raw packets, re-armor into a single block.
+         * More compact but may confuse verifiers that cannot handle v6 packets.
+         */
+        MERGED_PACKETS
+    }
+
+    /**
      * Private constructor to prevent instantiation of this utility class.
      */
     private AscCombiner() {
@@ -42,7 +59,7 @@ public final class AscCombiner {
      * @throws IllegalArgumentException if the input is null or empty
      */
     public static byte[] dearmor(String armored) {
-        validateInput(armored, "Armored input");
+        assertNotEmpty(armored, "Armored input");
 
         try {
             return dearmorInternal(armored);
@@ -64,30 +81,13 @@ public final class AscCombiner {
      * @throws IllegalArgumentException if the input is null or empty
      */
     public static String armor(byte[] rawPackets) {
-        validateInput(rawPackets, "Raw packet data");
+        assertNotEmpty(rawPackets, "Raw packet data");
 
         try {
             return armorInternal(rawPackets);
         } catch (IOException e) {
             throw new UncheckedIOException("Failed to armor PGP packets", e);
         }
-    }
-
-    /**
-     * How to combine classic and PQC signatures in a single .asc file.
-     */
-    public enum CombineMode {
-        /**
-         * Two separate armored blocks in the same file (classic first).
-         * Compatible with Maven Central and other verifiers that only
-         * read the first armored block.
-         */
-        SEPARATE_BLOCKS,
-        /**
-         * Dearmor both, concatenate raw packets, re-armor into a single block.
-         * More compact but may confuse verifiers that cannot handle v6 packets.
-         */
-        MERGED_PACKETS
     }
 
     /**
@@ -113,8 +113,8 @@ public final class AscCombiner {
      * @throws IllegalArgumentException if any input is null or empty
      */
     public static String combine(String armoredClassic, String armoredPqc, CombineMode mode) {
-        validateInput(armoredClassic, "First armored input");
-        validateInput(armoredPqc, "Second armored input");
+        assertNotEmpty(armoredClassic, "First armored input");
+        assertNotEmpty(armoredPqc, "Second armored input");
         if (mode == null) {
             throw new IllegalArgumentException("CombineMode must not be null");
         }
@@ -142,7 +142,7 @@ public final class AscCombiner {
      * @throws IllegalArgumentException if combined is null or empty
      */
     public static String extractBlock(String combined, int index) {
-        validateInput(combined, "Combined input");
+        assertNotEmpty(combined, "Combined input");
 
         int blockIndex = 0;
         int searchFrom = 0;
@@ -235,7 +235,7 @@ public final class AscCombiner {
      * @param paramName the parameter name for error messages
      * @throws IllegalArgumentException if the input is null or empty
      */
-    private static void validateInput(String input, String paramName) {
+    private static void assertNotEmpty(String input, String paramName) {
         if (input == null || input.isEmpty()) {
             throw new IllegalArgumentException(paramName + " must not be null or empty");
         }
@@ -248,7 +248,7 @@ public final class AscCombiner {
      * @param paramName the parameter name for error messages
      * @throws IllegalArgumentException if the input is null or empty
      */
-    private static void validateInput(byte[] input, String paramName) {
+    private static void assertNotEmpty(byte[] input, String paramName) {
         if (input == null || input.length == 0) {
             throw new IllegalArgumentException(paramName + " must not be null or empty");
         }
