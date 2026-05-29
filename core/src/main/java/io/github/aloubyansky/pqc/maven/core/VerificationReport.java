@@ -31,7 +31,7 @@ package io.github.aloubyansky.pqc.maven.core;
  * @param classicResult the result of classic GPG signature verification
  * @param classicKeyId the GPG key ID that signed the artifact, or null if unavailable
  * @param pqcResult the result of PQC signature verification
- * @param pqcAlgorithm the PQC algorithm used (e.g., "ML-DSA-65+Ed25519"), or null if
+ * @param pqcAlgorithm the PQC algorithm used (e.g., "ML-DSA-87+Ed448"), or null if
  *        signature not present
  * @param pqcKeyFingerprint the PQC key fingerprint, or null if unavailable
  *
@@ -91,7 +91,7 @@ public record VerificationReport(
      * <pre>
      * Signature Verification Report:
      *   Classic (GPG):           PASS    [key: 0xABCD1234]
-     *   PQC (ML-DSA-65+Ed25519): PASS    [key: abc123def456]
+     *   PQC (ML-DSA-87+Ed448):   PASS    [key: abc123def456]
      *   Overall: PASS (both signatures valid)
      * </pre>
      *
@@ -115,9 +115,18 @@ public record VerificationReport(
      *
      * @return a formatted string like " Classic (GPG): PASS [key: 0xABCD1234]"
      */
+    private int resultColumn() {
+        String algorithm = (pqcAlgorithm != null) ? pqcAlgorithm : "unknown";
+        int pqcPrefix = "  PQC (".length() + algorithm.length() + "): ".length();
+        int classicPrefix = "  Classic (GPG): ".length();
+        return Math.max(pqcPrefix, classicPrefix);
+    }
+
     private String formatClassicLine() {
         StringBuilder sb = new StringBuilder();
-        sb.append("  Classic (GPG):           ");
+        String prefix = "  Classic (GPG): ";
+        sb.append(prefix);
+        sb.append(" ".repeat(resultColumn() - prefix.length()));
         sb.append(String.format("%-11s", classicResult));
 
         if (classicKeyId != null && !classicKeyId.isEmpty()) {
@@ -135,18 +144,14 @@ public record VerificationReport(
      * {@link VerificationResult#NOT_PRESENT} displays a user-friendly message.
      *
      *
-     * @return a formatted string like " PQC (ML-DSA-65+Ed25519): PASS [key: abc123]"
+     * @return a formatted string like " PQC (ML-DSA-87+Ed448): PASS [key: abc123]"
      */
     private String formatPqcLine() {
         StringBuilder sb = new StringBuilder();
         String algorithm = (pqcAlgorithm != null) ? pqcAlgorithm : "unknown";
-        sb.append("  PQC (").append(algorithm).append("): ");
-
-        // Pad the algorithm name to align the result column
-        int algorithmLength = algorithm.length();
-        int targetLength = "ML-DSA-65+Ed25519".length();
-        int padding = Math.max(0, targetLength - algorithmLength);
-        sb.append(" ".repeat(padding));
+        String prefix = "  PQC (" + algorithm + "): ";
+        sb.append(prefix);
+        sb.append(" ".repeat(resultColumn() - prefix.length()));
 
         if (pqcResult == VerificationResult.NOT_PRESENT) {
             sb.append("NOT PRESENT (classic-only signature)");

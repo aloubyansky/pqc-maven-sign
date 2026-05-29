@@ -25,7 +25,7 @@ import org.apache.maven.project.MavenProjectHelper;
  * This Mojo is bound to the VERIFY phase and creates detached .asc signature
  * files for the main artifact, POM, and all attached artifacts. Each signature
  * contains both a classical GPG signature (for backward compatibility) and a
- * PQC signature using ML-DSA-65 + Ed25519.
+ * PQC signature using a post-quantum hybrid cipher suite.
  *
  * <p>
  * Example configuration:

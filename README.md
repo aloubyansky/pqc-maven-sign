@@ -5,7 +5,7 @@
 This tool adds post-quantum cryptographic (PQC) signatures to Maven artifacts alongside classic GPG signatures. Every `.asc` signature file contains two OpenPGP signatures:
 
 - A **classic v4 signature** (RSA/EdDSA via GnuPG) — backward-compatible, verifiable by all existing tools
-- A **PQC v6 signature** (ML-DSA-65+Ed25519 via Sequoia) — quantum-resistant, per [draft-ietf-openpgp-pqc](https://datatracker.ietf.org/doc/draft-ietf-openpgp-pqc/)
+- A **PQC v6 signature** (ML-DSA-87+Ed448 via Sequoia, default; configurable) — quantum-resistant, CNSA 2.0 compliant, per [draft-ietf-openpgp-pqc](https://datatracker.ietf.org/doc/draft-ietf-openpgp-pqc/)
 
 The two signatures can be stored as **two separate armored blocks** (default, Maven Central compatible) or **merged into a single armored block** with concatenated raw packets. See [Combine Modes](#combine-modes) for details.
 
@@ -50,7 +50,7 @@ sq version
 # Must show 1.4.0-pqc.1 or later
 
 sq key generate --help | grep mldsa
-# Must show mldsa65-ed25519 in the cipher-suite options
+# Must show mldsa87-ed448 in the cipher-suite options
 ```
 
 **Important:** If both a system `sq` (e.g., `/usr/bin/sq`) and the PQC-enabled `sq` (e.g., `~/.cargo/bin/sq`) are installed, make sure `~/.cargo/bin` comes first on your `PATH`:
@@ -141,7 +141,7 @@ java -jar cli/target/pqc-sign.jar keygen \
   --userid "Your Name <you@example.com>"
 ```
 
-This generates a composite ML-DSA-65+Ed25519 keypair in Sequoia's keystore and prints the fingerprint. Save the fingerprint — you'll need it for signing.
+This generates a PQC hybrid keypair (ML-DSA-87+Ed448 by default) in Sequoia's keystore and prints the fingerprint. Save the fingerprint — you'll need it for signing. Use `--cipher-suite mldsa65-ed25519` to generate a key with the ML-DSA-65 cipher suite instead.
 
 **Storing the fingerprint.** Add it to your shell profile for convenient reuse:
 
@@ -185,7 +185,7 @@ Output:
 ```
 Signature Verification Report:
   Classic (GPG):             PASS
-  PQC (ML-DSA-65+Ed25519):  PASS    [key: <fingerprint>]
+  PQC (ML-DSA-87+Ed448):    PASS    [key: <fingerprint>]
   Overall: PASS (both signatures valid)
 ```
 
@@ -234,7 +234,7 @@ This produces a standard ASCII-armored `.asc` file containing a v4 OpenPGP signa
 sq --overwrite sign --signer <fingerprint> --signature-file <sig> <artifact>
 ```
 
-Sequoia produces a detached ASCII-armored signature containing a v6 OpenPGP signature packet with composite ML-DSA-65+Ed25519 per draft-ietf-openpgp-pqc. The PQC key must be in Sequoia's keystore (set via the `SEQUOIA_HOME` environment variable). The `--overwrite` flag is always passed to handle cases where the output file already exists (e.g., temp files).
+Sequoia produces a detached ASCII-armored signature containing a v6 OpenPGP signature packet with the configured PQC hybrid cipher suite (ML-DSA-87+Ed448 by default) per draft-ietf-openpgp-pqc. The PQC key must be in Sequoia's keystore (set via the `SEQUOIA_HOME` environment variable). The `--overwrite` flag is always passed to handle cases where the output file already exists (e.g., temp files).
 
 **Stage 3 — Combine.** `AscCombiner` merges both signatures into a single `.asc` file. The combine behavior depends on the selected mode (see [Combine Modes](#combine-modes)).
 
@@ -325,7 +325,7 @@ Sequoia finds the v6 PQC signature packet and verifies it against its cert-store
 
 PQC keys are managed by Sequoia's built-in keystore, controlled by the `SEQUOIA_HOME` environment variable (defaults to `~/.local/share/sequoia`):
 
-- **Key generation** calls `sq key generate --cipher-suite mldsa65-ed25519 --profile rfc9580 --own-key --without-password`. The `--without-password` flag is required for non-interactive use (CI/CD, headless environments) since `sq` otherwise prompts for a passphrase on `/dev/tty`.
+- **Key generation** calls `sq key generate --cipher-suite <suite> --profile rfc9580 --own-key --without-password`, where `<suite>` defaults to `mldsa87-ed448` (CNSA 2.0 compliant). The `--without-password` flag is required for non-interactive use (CI/CD, headless environments) since `sq` otherwise prompts for a passphrase on `/dev/tty`.
 - **Key lookup** during signing uses the key fingerprint to locate the key in Sequoia's keystore.
 - **Certificate export** for sharing with verifiers: `sq cert export --cert <fingerprint>`.
 - **Key isolation** — each `SqRunner` instance sets `SEQUOIA_HOME` to its configured directory, allowing multiple independent keystores.
@@ -340,15 +340,16 @@ With `MERGED_PACKETS` mode, the single armored block contains both v4 and v6 pac
 
 ### `pqc-sign keygen`
 
-Generate a PQC keypair (composite ML-DSA-65+Ed25519).
+Generate a PQC hybrid keypair.
 
 ```
-pqc-sign keygen --userid <USER_ID> [--sq-home <DIR>]
+pqc-sign keygen --userid <USER_ID> [--cipher-suite <SUITE>] [--sq-home <DIR>]
 ```
 
 | Option | Required | Default | Description |
 |--------|----------|---------|-------------|
 | `--userid` | Yes | — | User ID in canonical form (e.g., `"Alice <alice@example.com>"`) |
+| `--cipher-suite` | No | `mldsa87-ed448` | PQC cipher suite (e.g., `mldsa65-ed25519` for ML-DSA-65) |
 | `--sq-home` | No | `~/.local/share/sequoia` | Sequoia keystore directory |
 
 ### `pqc-sign sign`
@@ -468,7 +469,7 @@ mvn test -pl core
 
 ### Integration Tests
 
-The integration tests (`RoundTripIntegrationTest`) require both GnuPG and PQC-enabled Sequoia sq installed. They are automatically skipped if either tool is unavailable or if `sq` does not support PQC cipher suites (checked by looking for `mldsa65-ed25519` in `sq key generate --help` output).
+The integration tests (`RoundTripIntegrationTest`) require both GnuPG and PQC-enabled Sequoia sq installed. They are automatically skipped if either tool is unavailable or if `sq` does not support the default PQC cipher suite (`mldsa87-ed448`).
 
 Make sure the PQC-enabled `sq` is first on your PATH:
 
@@ -570,14 +571,14 @@ maven-plugin/                            Maven plugin (sign + verify goals)
 
 ## PQC Signature Sizes
 
-| Component | Size |
-|-----------|------|
-| ML-DSA-65 public key | ~1,952 bytes |
-| ML-DSA-65 private key | ~4,032 bytes |
-| ML-DSA-65 signature | ~3,309 bytes |
-| Ed25519 signature (for comparison) | 64 bytes |
+| Component | ML-DSA-87 (default) | ML-DSA-65 |
+|-----------|---------------------|-----------|
+| Public key | ~2,592 bytes | ~1,952 bytes |
+| Private key | ~4,896 bytes | ~4,032 bytes |
+| Signature | ~4,627 bytes | ~3,309 bytes |
+| Ed25519/Ed448 (for comparison) | 114 bytes | 64 bytes |
 
-The PQC signature adds ~3.3 KB per artifact to the `.asc` file. For a typical Maven module with 4 artifacts (JAR, POM, sources, javadoc), this adds ~13 KB total.
+With the default ML-DSA-87+Ed448 cipher suite, the PQC signature adds ~4.6 KB per artifact to the `.asc` file. For a typical Maven module with 4 artifacts (JAR, POM, sources, javadoc), this adds ~18 KB total.
 
 ## Upstream Contribution Path
 

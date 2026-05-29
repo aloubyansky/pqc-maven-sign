@@ -13,7 +13,7 @@ import picocli.CommandLine;
  * Command-line interface for creating hybrid signatures.
  * <p>
  * This command creates a hybrid signature that combines classical GPG (v4 packet)
- * and post-quantum cryptography (v6 packet using ML-DSA-65 + Ed25519) into a
+ * and post-quantum cryptography (v6 packet using a PQC hybrid cipher suite) into a
  * single ASCII-armored signature file. The resulting signature provides both
  * classical and quantum-resistant security.
  *

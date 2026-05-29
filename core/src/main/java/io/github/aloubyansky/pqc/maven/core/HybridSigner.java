@@ -11,7 +11,7 @@ import java.nio.file.Path;
  * This class coordinates two separate signing operations:
  * <ol>
  * <li>Classical signature using GPG</li>
- * <li>Post-quantum signature using Sequoia's ML-DSA-65 + Ed25519 cipher suite</li>
+ * <li>Post-quantum signature using Sequoia's PQC hybrid cipher suite</li>
  * </ol>
  * The two ASCII-armored signatures are then combined into a single armored block
  * using {@link AscCombiner}, resulting in a hybrid signature that provides both
