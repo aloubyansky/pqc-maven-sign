@@ -38,3 +38,4 @@ println "Generated PQC key: ${fingerprint}"
 
 def props = new File(basedir, "test.properties")
 props.text = "pqc.fingerprint=${fingerprint}\npqc.sqHome=${sqHome.absolutePath}\n"
+return true
