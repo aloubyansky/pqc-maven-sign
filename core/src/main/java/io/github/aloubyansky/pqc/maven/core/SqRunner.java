@@ -19,9 +19,10 @@ import java.util.regex.Pattern;
  * signing, verification, and certificate export.
  * <p>
  * This class provides a Java interface to Sequoia's post-quantum cryptography
- * capabilities, specifically using the ML-DSA-65 + Ed25519 hybrid cipher suite
- * as defined in RFC 9580. All operations are isolated to a specific Sequoia
- * home directory via the SEQUOIA_HOME environment variable.
+ * capabilities, using hybrid cipher suites as defined in RFC 9580. The default
+ * cipher suite is {@value #DEFAULT_CIPHER_SUITE} (configurable via
+ * {@link #generateKey(String, String)}). All operations are isolated to a
+ * specific Sequoia home directory via the SEQUOIA_HOME environment variable.
  *
  * <p>
  * Example usage:
@@ -61,8 +62,20 @@ import java.util.regex.Pattern;
  */
 public class SqRunner {
 
+    /**
+     * Default Sequoia cipher suite identifier passed to {@code --cipher-suite}.
+     */
+    public static final String DEFAULT_CIPHER_SUITE = "mldsa87-ed448";
+
+    /**
+     * Human-readable algorithm name corresponding to {@link #DEFAULT_CIPHER_SUITE}.
+     */
+    public static final String DEFAULT_PQC_ALGORITHM = "ML-DSA-87+Ed448";
+
     private static final int TIMEOUT_SECONDS = 60;
     private static final Pattern FINGERPRINT_PATTERN = Pattern.compile("(?i)(?:fingerprint:?\\s*)?([0-9A-F]{64})");
+    private static final Pattern PQC_ALGORITHM_PATTERN = Pattern.compile(
+            "(?:ML-DSA-|CompositeMLDSA|mldsa)(\\d+)[+\\-_ ]?[Ee]d(\\w+)");
 
     private final String sqExecutable;
     private final Path sequoiaHome;
@@ -97,32 +110,50 @@ public class SqRunner {
     }
 
     /**
-     * Generates a new PQC key using the ML-DSA-65 + Ed25519 hybrid cipher suite.
-     * <p>
-     * This method runs:
-     * {@code sq key generate --userid <userId> --cipher-suite mldsa65-ed25519
-     * --profile rfc9580 --own-key}
-     *
-     * <p>
-     * The key is stored in the SEQUOIA_HOME directory and can be used for signing
-     * operations via the returned fingerprint.
-     *
+     * Generates a new PQC key using the default cipher suite ({@value #DEFAULT_CIPHER_SUITE}).
      *
      * @param userId the user ID for the key (e.g., "Alice &lt;alice@example.com&gt;")
      * @return the 64-character hexadecimal fingerprint of the generated key
      * @throws IllegalArgumentException if userId is null or empty
      * @throws CliTool.CliException if the sq command fails
      * @throws IllegalStateException if the fingerprint cannot be parsed from the output
+     * @see #generateKey(String, String)
      */
     public String generateKey(String userId) {
+        return generateKey(userId, DEFAULT_CIPHER_SUITE);
+    }
+
+    /**
+     * Generates a new PQC key using the specified cipher suite.
+     * <p>
+     * This method runs:
+     * {@code sq key generate --userid <userId> --cipher-suite <cipherSuite>
+     * --profile rfc9580 --own-key}
+     *
+     * <p>
+     * The key is stored in the SEQUOIA_HOME directory and can be used for signing
+     * operations via the returned fingerprint.
+     *
+     * @param userId the user ID for the key (e.g., "Alice &lt;alice@example.com&gt;")
+     * @param cipherSuite the Sequoia cipher suite identifier
+     *        (e.g., {@value #DEFAULT_CIPHER_SUITE})
+     * @return the 64-character hexadecimal fingerprint of the generated key
+     * @throws IllegalArgumentException if userId or cipherSuite is null or empty
+     * @throws CliTool.CliException if the sq command fails
+     * @throws IllegalStateException if the fingerprint cannot be parsed from the output
+     */
+    public String generateKey(String userId, String cipherSuite) {
         if (userId == null || userId.isEmpty()) {
             throw new IllegalArgumentException("userId cannot be null or empty");
+        }
+        if (cipherSuite == null || cipherSuite.isEmpty()) {
+            throw new IllegalArgumentException("cipherSuite cannot be null or empty");
         }
 
         String[] args = {
                 "key", "generate",
                 "--userid", userId,
-                "--cipher-suite", "mldsa65-ed25519",
+                "--cipher-suite", cipherSuite,
                 "--profile", "rfc9580",
                 "--own-key",
                 "--without-password"
@@ -233,6 +264,35 @@ public class SqRunner {
 
         CliTool.Result result = runSq(args);
         return result.stdout();
+    }
+
+    /**
+     * Inspects a signature file and extracts the PQC algorithm name.
+     * <p>
+     * Runs {@code sq packet dump} on the file and parses the algorithm from the
+     * output. Recognizes various Sequoia output formats (e.g., "ML-DSA-87+Ed448",
+     * "CompositeMLDSA87Ed448", "mldsa65-ed25519") and normalizes to the
+     * human-readable form "ML-DSA-{level}+Ed{curve}".
+     *
+     * @param signatureFile the signature file to inspect
+     * @return the algorithm name (e.g., "ML-DSA-87+Ed448"), or {@code null} if
+     *         the algorithm could not be determined
+     */
+    public String inspectSignatureAlgorithm(Path signatureFile) {
+        if (signatureFile == null) {
+            return null;
+        }
+        try {
+            CliTool.Result result = runSq("packet", "dump", signatureFile.toString());
+            String output = result.stdout() + "\n" + result.stderr();
+            Matcher matcher = PQC_ALGORITHM_PATTERN.matcher(output);
+            if (matcher.find()) {
+                return "ML-DSA-" + matcher.group(1) + "+Ed" + matcher.group(2);
+            }
+        } catch (Exception e) {
+            // inspection is best-effort
+        }
+        return null;
     }
 
     /**

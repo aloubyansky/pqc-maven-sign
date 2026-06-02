@@ -10,9 +10,10 @@ import picocli.CommandLine;
  * Command-line interface for generating new PQC keys.
  * <p>
  * This command generates a new post-quantum cryptographic key using the Sequoia
- * (sq) tool with the ML-DSA-65 + Ed25519 hybrid cipher suite as specified in
- * RFC 9580. The generated key is stored in the Sequoia home directory and can
- * be used for subsequent signing operations.
+ * (sq) tool with a hybrid cipher suite as specified in RFC 9580. The cipher
+ * suite defaults to {@code mldsa87-ed448} (ML-DSA-87 + Ed448) and can be
+ * overridden with {@code --cipher-suite}. The generated key is stored in the
+ * Sequoia home directory and can be used for subsequent signing operations.
  *
  * <p>
  * Example usage:
@@ -37,7 +38,7 @@ import picocli.CommandLine;
  * system PATH. Use {@code sq version} to verify installation.
  *
  *
- * @see SqRunner#generateKey(String)
+ * @see SqRunner#generateKey(String, String)
  */
 @CommandLine.Command(name = "keygen", description = "Generate a new PQC key for signing", mixinStandardHelpOptions = true)
 public class KeygenCommand implements Callable<Integer> {
@@ -72,6 +73,10 @@ public class KeygenCommand implements Callable<Integer> {
     @CommandLine.Option(names = { "--sq-home" }, description = "Sequoia home directory (default: ~/.local/share/sequoia)")
     private String sqHome;
 
+    @CommandLine.Option(names = {
+            "--cipher-suite" }, defaultValue = SqRunner.DEFAULT_CIPHER_SUITE, description = "PQC cipher suite (default: ${DEFAULT-VALUE})")
+    private String cipherSuite;
+
     /**
      * Executes the key generation command.
      * <p>
@@ -96,7 +101,7 @@ public class KeygenCommand implements Callable<Integer> {
             Path sqHomeDir = resolveSequoiaHome();
             SqRunner sq = new SqRunner(sqHomeDir);
 
-            String fingerprint = sq.generateKey(userId);
+            String fingerprint = sq.generateKey(userId, cipherSuite);
 
             printSuccessMessage(fingerprint, sqHomeDir);
             return 0;

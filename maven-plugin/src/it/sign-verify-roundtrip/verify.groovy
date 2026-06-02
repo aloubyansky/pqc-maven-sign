@@ -1,12 +1,14 @@
 File buildDir = new File(basedir, "target")
-assert buildDir.exists()
+assert buildDir.exists() : "target directory missing"
 
 File jarAsc = new File(buildDir, "sign-verify-roundtrip-1.0-SNAPSHOT.jar.asc")
-if (jarAsc.exists()) {
-    String content = jarAsc.text
-    assert content.contains("-----BEGIN PGP SIGNATURE-----") : ".asc should contain PGP signature"
-    assert content.contains("-----END PGP SIGNATURE-----") : ".asc should have complete PGP block"
-    println "SUCCESS: hybrid .asc file verified"
-} else {
-    println "SKIP: .asc not found (GPG/sq may not be configured)"
-}
+assert jarAsc.exists() : ".asc signature file was not created"
+
+String content = jarAsc.text
+int beginCount = content.count("-----BEGIN PGP SIGNATURE-----")
+int endCount = content.count("-----END PGP SIGNATURE-----")
+
+assert beginCount == 2 : "Expected 2 PGP signature blocks, found ${beginCount}"
+assert endCount == 2 : "Expected 2 PGP end markers, found ${endCount}"
+
+println "SUCCESS: hybrid .asc file contains classic + PQC signature blocks"

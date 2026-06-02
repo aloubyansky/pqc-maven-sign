@@ -29,7 +29,7 @@ class HybridVerifierTest {
                 VerificationResult.PASS,
                 "0xABCD1234",
                 VerificationResult.PASS,
-                "ML-DSA-65+Ed25519",
+                SqRunner.DEFAULT_PQC_ALGORITHM,
                 "abc123def456");
 
         assertTrue(report.isStrictPass(),
@@ -42,7 +42,7 @@ class HybridVerifierTest {
                 "Formatted report should contain PASS");
         assertTrue(formatted.contains("0xABCD1234"),
                 "Formatted report should contain classic key ID");
-        assertTrue(formatted.contains("ML-DSA-65+Ed25519"),
+        assertTrue(formatted.contains(SqRunner.DEFAULT_PQC_ALGORITHM),
                 "Formatted report should contain PQC algorithm");
         assertTrue(formatted.contains("abc123def456"),
                 "Formatted report should contain PQC fingerprint");
@@ -58,7 +58,7 @@ class HybridVerifierTest {
                 VerificationResult.PASS,
                 "0xABCD1234",
                 VerificationResult.NO_KEY,
-                "ML-DSA-65+Ed25519",
+                SqRunner.DEFAULT_PQC_ALGORITHM,
                 null);
 
         assertFalse(report.isStrictPass(),
@@ -104,7 +104,7 @@ class HybridVerifierTest {
                 VerificationResult.FAIL,
                 "0xABCD1234",
                 VerificationResult.FAIL,
-                "ML-DSA-65+Ed25519",
+                SqRunner.DEFAULT_PQC_ALGORITHM,
                 "abc123def456");
 
         assertFalse(report.isStrictPass(),
@@ -127,7 +127,7 @@ class HybridVerifierTest {
                 VerificationResult.FAIL,
                 "0xABCD1234",
                 VerificationResult.PASS,
-                "ML-DSA-65+Ed25519",
+                SqRunner.DEFAULT_PQC_ALGORITHM,
                 "abc123def456");
 
         assertFalse(report.isStrictPass(),
@@ -146,7 +146,7 @@ class HybridVerifierTest {
                 VerificationResult.PASS,
                 null,
                 VerificationResult.PASS,
-                "ML-DSA-65+Ed25519",
+                SqRunner.DEFAULT_PQC_ALGORITHM,
                 "abc123def456");
 
         String formatted = report.format();
@@ -174,14 +174,14 @@ class HybridVerifierTest {
                 VerificationResult.PASS,
                 "0xABCD1234",
                 VerificationResult.PASS,
-                "ML-DSA-65+Ed25519",
+                SqRunner.DEFAULT_PQC_ALGORITHM,
                 null);
 
         String formatted = report.format();
         String[] lines = formatted.split("\n");
         boolean pqcLineHasNoKey = false;
         for (String line : lines) {
-            if (line.contains("ML-DSA-65+Ed25519") && !line.contains("[key:")) {
+            if (line.contains(SqRunner.DEFAULT_PQC_ALGORITHM) && !line.contains("[key:")) {
                 pqcLineHasNoKey = true;
                 break;
             }

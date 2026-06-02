@@ -123,9 +123,10 @@ public class HybridVerifier {
         String pqcKeyFp = null;
 
         if (sq != null) {
-            pqcResult = verifyPqc(artifactFile, signatureFile);
+            PqcVerification pqc = verifyPqc(artifactFile, signatureFile);
+            pqcResult = pqc.result;
             if (pqcResult == VerificationResult.PASS || pqcResult == VerificationResult.FAIL) {
-                pqcAlgorithm = "ML-DSA-65+Ed25519"; // Default algorithm
+                pqcAlgorithm = pqc.algorithm;
                 pqcKeyFp = pqcFingerprint;
             }
         } else {
@@ -177,21 +178,24 @@ public class HybridVerifier {
         return goodSignature ? VerificationResult.PASS : VerificationResult.FAIL;
     }
 
+    private record PqcVerification(VerificationResult result, String algorithm) {
+    }
+
     /**
-     * Verifies the PQC signature using the Sequoia command-line tool.
+     * Verifies the PQC signature and detects the algorithm from the signature.
      * <p>
      * When the signature file contains multiple armored blocks (classic + PQC),
      * extracts the PQC block (second block) into a temporary file for Sequoia,
-     * which only processes the first armored block in a file.
+     * which only processes the first armored block in a file. After verification,
+     * inspects the signature to determine the actual PQC algorithm.
      *
      * @param artifactFile the file that was signed
      * @param signatureFile the signature file to verify
-     * @return {@link VerificationResult#PASS} if verification succeeds,
-     *         {@link VerificationResult#FAIL} otherwise
+     * @return verification result with the detected algorithm name
      */
-    private VerificationResult verifyPqc(Path artifactFile, Path signatureFile) {
+    private PqcVerification verifyPqc(Path artifactFile, Path signatureFile) {
         if (sq == null) {
-            return VerificationResult.NOT_PRESENT;
+            return new PqcVerification(VerificationResult.NOT_PRESENT, null);
         }
         Path pqcSigFile = null;
         try {
@@ -203,9 +207,11 @@ public class HybridVerifier {
                 signatureFile = pqcSigFile;
             }
             boolean verified = sq.verify(artifactFile, signatureFile, pqcFingerprint);
-            return verified ? VerificationResult.PASS : VerificationResult.FAIL;
+            VerificationResult result = verified ? VerificationResult.PASS : VerificationResult.FAIL;
+            String algorithm = sq.inspectSignatureAlgorithm(signatureFile);
+            return new PqcVerification(result, algorithm);
         } catch (IOException e) {
-            return VerificationResult.FAIL;
+            return new PqcVerification(VerificationResult.FAIL, null);
         } finally {
             if (pqcSigFile != null) {
                 try {

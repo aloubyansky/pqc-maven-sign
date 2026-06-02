@@ -1,6 +1,5 @@
 package io.github.aloubyansky.pqc.maven.cli;
 
-import io.github.aloubyansky.pqc.maven.core.AscCombiner;
 import io.github.aloubyansky.pqc.maven.core.GpgSigner;
 import io.github.aloubyansky.pqc.maven.core.HybridSigner;
 import io.github.aloubyansky.pqc.maven.core.SqRunner;
@@ -13,7 +12,7 @@ import picocli.CommandLine;
  * Command-line interface for creating hybrid signatures.
  * <p>
  * This command creates a hybrid signature that combines classical GPG (v4 packet)
- * and post-quantum cryptography (v6 packet using ML-DSA-65 + Ed25519) into a
+ * and post-quantum cryptography (v6 packet using a PQC hybrid cipher suite) into a
  * single ASCII-armored signature file. The resulting signature provides both
  * classical and quantum-resistant security.
  *
@@ -106,10 +105,6 @@ public class SignCommand implements Callable<Integer> {
     @CommandLine.Option(names = { "--output" }, description = "Output signature file path (default: <file>.asc)")
     private String output;
 
-    @CommandLine.Option(names = {
-            "--combine-mode" }, description = "How to combine signatures: SEPARATE_BLOCKS (default, Maven Central compatible) or MERGED_PACKETS (single armored block)")
-    private AscCombiner.CombineMode combineMode;
-
     /**
      * Executes the signing command.
      * <p>
@@ -138,7 +133,7 @@ public class SignCommand implements Callable<Integer> {
 
             GpgSigner gpgSigner = createGpgSigner();
             SqRunner sqRunner = createSqRunner(sqHomeDir);
-            HybridSigner signer = HybridSigner.create(gpgSigner, sqRunner, pqcFingerprint, combineMode);
+            HybridSigner signer = HybridSigner.create(gpgSigner, sqRunner, pqcFingerprint);
 
             signer.sign(artifactFile, outputFile);
 

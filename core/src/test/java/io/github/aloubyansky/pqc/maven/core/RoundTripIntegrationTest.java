@@ -26,7 +26,7 @@ import org.junit.jupiter.api.io.TempDir;
  * <p>
  * Test flow:
  * <ol>
- * <li>Generate a PQC key using Sequoia's ML-DSA-65 + Ed25519 cipher suite</li>
+ * <li>Generate a PQC key using Sequoia's PQC hybrid cipher suite</li>
  * <li>Sign artifacts using {@link HybridSigner} (GPG + Sequoia)</li>
  * <li>Verify signatures using {@link HybridVerifier}</li>
  * <li>Validate backward compatibility with GPG-only verification</li>
@@ -49,7 +49,7 @@ class RoundTripIntegrationTest {
      * <p>
      * This method is used by JUnit's {@link EnabledIf} annotation to conditionally
      * enable the test class. It verifies not just that {@code sq} is installed, but
-     * that it supports the PQC cipher suite ({@code mldsa65-ed25519}). The standard
+     * that it supports the default PQC cipher suite. The standard
      * Sequoia release (1.3.x) does not include PQC support — version 1.4.0-pqc.1+
      * from the {@code pqc} branch is required.
      *
@@ -63,8 +63,8 @@ class RoundTripIntegrationTest {
         // Check that sq actually supports PQC cipher suites
         try {
             CliTool.Result result = CliTool.run("sq", "key", "generate", "--help");
-            return result.stdout().contains("mldsa65-ed25519")
-                    || result.stderr().contains("mldsa65-ed25519");
+            return result.stdout().contains(SqRunner.DEFAULT_CIPHER_SUITE)
+                    || result.stderr().contains(SqRunner.DEFAULT_CIPHER_SUITE);
         } catch (Exception e) {
             return false;
         }
@@ -74,7 +74,7 @@ class RoundTripIntegrationTest {
      * Sets up the test environment by creating a temporary Sequoia home directory
      * and generating a PQC key for use in all tests.
      * <p>
-     * The generated key uses Sequoia's ML-DSA-65 + Ed25519 hybrid cipher suite,
+     * The generated key uses Sequoia's default PQC hybrid cipher suite,
      * providing both classical and post-quantum security. The key fingerprint is
      * stored in {@link #pqcFingerprint} for use by all test methods.
      *
@@ -137,30 +137,6 @@ class RoundTripIntegrationTest {
         // Print the report for manual inspection
         System.out.println("=== Full Round-Trip Verification Report ===");
         System.out.println(report.format());
-    }
-
-    @Test
-    void fullRoundTrip_mergedPackets(@TempDir Path tempDir) throws Exception {
-        Path artifact = createTestArtifact(tempDir, "merged-test.jar");
-        Path signature = tempDir.resolve("merged-test.jar.asc");
-
-        HybridSigner signer = createHybridSigner()
-                .withCombineMode(AscCombiner.CombineMode.MERGED_PACKETS);
-        signer.sign(artifact, signature);
-
-        HybridVerifier verifier = createHybridVerifier();
-        VerificationReport report = verifier.verify(artifact, signature);
-
-        assertEquals(VerificationResult.PASS, report.classicResult(),
-                "Classic (GPG) signature should be valid in merged mode");
-        assertEquals(VerificationResult.PASS, report.pqcResult(),
-                "PQC (Sequoia) signature should be valid in merged mode");
-        assertTrue(report.isStrictPass());
-
-        // Merged mode produces a single armored block
-        String content = Files.readString(signature);
-        assertEquals(1, content.split("-----BEGIN PGP").length - 1,
-                "Merged mode should produce a single armored block");
     }
 
     /**
