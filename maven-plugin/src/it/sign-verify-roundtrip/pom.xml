@@ -22,7 +22,8 @@
                     </execution>
                 </executions>
                 <configuration>
-                    <pqcFingerprint>${env.PQC_FINGERPRINT}</pqcFingerprint>
+                    <pqcFingerprint>${pqc.fingerprint}</pqcFingerprint>
+                    <sqHome>${pqc.sqHome}</sqHome>
                 </configuration>
             </plugin>
         </plugins>
