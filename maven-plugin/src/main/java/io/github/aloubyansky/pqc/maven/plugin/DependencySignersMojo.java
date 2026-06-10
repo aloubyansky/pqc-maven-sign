@@ -121,8 +121,9 @@ public class DependencySignersMojo extends AbstractDependencyMojo {
             int version = AscCombiner.detectSignatureVersion(block);
 
             if (version >= 6) {
+                String fingerprint = AscCombiner.extractV6IssuerFingerprint(block);
                 entries.add(new ArtifactSigner(coords, resolved.repoId,
-                        new SignatureInfo(version, null, null, null, VerificationResult.SKIPPED)));
+                        new SignatureInfo(version, fingerprint, null, null, VerificationResult.SKIPPED)));
             } else {
                 if (entries.stream().noneMatch(e -> e.signatureInfo.version() > 0
                         && e.signatureInfo.version() <= 4)) {
@@ -290,7 +291,7 @@ public class DependencySignersMojo extends AbstractDependencyMojo {
                 .forEach(e -> summary.append(", ").append(e.getValue()).append(" ")
                         .append(versionLabel(e.getKey())).append(" signature(s)"));
         summary.append(", ").append(uniqueKeys).append(" unique key(s)");
-        getLog().info(summary.toString());
+        getLog().info("Summary: " + summary);
     }
 
     static String versionLabel(int version) {

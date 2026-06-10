@@ -177,6 +177,117 @@ public final class AscCombiner {
         }
     }
 
+    /**
+     * Extracts the issuer fingerprint from a v6 signature packet's
+     * Issuer Fingerprint subpacket (type 33).
+     *
+     * @param armoredBlock a single ASCII-armored OpenPGP block
+     * @return the issuer fingerprint as an uppercase hex string, or null if not found
+     */
+    public static String extractV6IssuerFingerprint(String armoredBlock) {
+        try {
+            byte[] raw = dearmorInternal(armoredBlock);
+            return extractV6IssuerFingerprintFromPackets(raw);
+        } catch (IOException e) {
+            return null;
+        }
+    }
+
+    private static final int SUBPACKET_TYPE_ISSUER_FINGERPRINT = 33;
+
+    private static String extractV6IssuerFingerprintFromPackets(byte[] raw) {
+        int bodyOffset = packetBodyOffset(raw);
+        if (bodyOffset < 0 || bodyOffset >= raw.length) {
+            return null;
+        }
+        int version = raw[bodyOffset] & 0xFF;
+        if (version < 6) {
+            return null;
+        }
+        // After version, sig type, pubkey algo, hash algo:
+        int base = bodyOffset + 4;
+        // Some v6 implementations (e.g. sq for PQC) omit the salt field;
+        // RFC 9580 v6 includes salt length + salt before the hashed subpackets.
+        // Try without salt first, then with salt.
+        String fp = tryExtractFromSubpackets(raw, base);
+        if (fp == null && base < raw.length) {
+            int saltLen = raw[base] & 0xFF;
+            fp = tryExtractFromSubpackets(raw, base + 1 + saltLen);
+        }
+        return fp;
+    }
+
+    private static String tryExtractFromSubpackets(byte[] raw, int pos) {
+        if (pos + 4 > raw.length) {
+            return null;
+        }
+        int hashedLen = ((raw[pos] & 0xFF) << 24) | ((raw[pos + 1] & 0xFF) << 16)
+                | ((raw[pos + 2] & 0xFF) << 8) | (raw[pos + 3] & 0xFF);
+        if (hashedLen < 0 || hashedLen > 65535 || pos + 4 + hashedLen > raw.length) {
+            return null;
+        }
+        pos += 4;
+        String fp = findIssuerFingerprint(raw, pos, pos + hashedLen);
+        if (fp != null) {
+            return fp;
+        }
+        pos += hashedLen;
+        if (pos + 4 > raw.length) {
+            return null;
+        }
+        int unhashedLen = ((raw[pos] & 0xFF) << 24) | ((raw[pos + 1] & 0xFF) << 16)
+                | ((raw[pos + 2] & 0xFF) << 8) | (raw[pos + 3] & 0xFF);
+        if (unhashedLen < 0 || unhashedLen > 65535 || pos + 4 + unhashedLen > raw.length) {
+            return null;
+        }
+        pos += 4;
+        return findIssuerFingerprint(raw, pos, pos + unhashedLen);
+    }
+
+    private static String findIssuerFingerprint(byte[] data, int start, int end) {
+        int pos = start;
+        while (pos < end) {
+            if (pos >= data.length) {
+                return null;
+            }
+            int lenByte = data[pos] & 0xFF;
+            int subLen;
+            if (lenByte < 192) {
+                subLen = lenByte;
+                pos += 1;
+            } else if (lenByte < 255) {
+                if (pos + 1 >= data.length) {
+                    return null;
+                }
+                subLen = ((lenByte - 192) << 8) + (data[pos + 1] & 0xFF) + 192;
+                pos += 2;
+            } else {
+                if (pos + 4 >= data.length) {
+                    return null;
+                }
+                subLen = ((data[pos + 1] & 0xFF) << 24) | ((data[pos + 2] & 0xFF) << 16)
+                        | ((data[pos + 3] & 0xFF) << 8) | (data[pos + 4] & 0xFF);
+                pos += 5;
+            }
+            if (subLen < 1 || pos + subLen > data.length) {
+                return null;
+            }
+            int type = data[pos] & 0x7F; // bit 7 is the critical flag
+            if (type == SUBPACKET_TYPE_ISSUER_FINGERPRINT && subLen >= 2) {
+                int fpLen = subLen - 2; // minus type byte and key version byte
+                if (fpLen > 0) {
+                    StringBuilder sb = new StringBuilder(fpLen * 2);
+                    for (int i = 0; i < fpLen; i++) {
+                        sb.append(String.format("%02X", data[pos + 2 + i]));
+                    }
+                    return sb.toString();
+                }
+            }
+            pos += subLen;
+        }
+        return null;
+    }
+
     private static final int TAG_SIGNATURE = 2;
     private static final int TAG_COMPRESSED_DATA = 8;
 

@@ -156,6 +156,42 @@ class AscCombinerTest {
     }
 
     @Test
+    void extractV6IssuerFingerprint_v6() {
+        // v6 signature with Issuer Fingerprint subpacket (type 33)
+        byte[] fingerprint = new byte[32];
+        for (int i = 0; i < 32; i++) {
+            fingerprint[i] = (byte) (i + 1);
+        }
+        byte[] v6Sig = new byte[] {
+                (byte) 0xC2, 0x34, // new format tag 2, body length 52
+                0x06, // version 6
+                0x00, // sig type
+                0x11, // pubkey algo
+                0x08, // hash algo
+                0x02, // salt length
+                (byte) 0xAA, (byte) 0xBB, // salt
+                0x00, 0x00, 0x00, 0x23, // hashed subpacket data length (35)
+                0x22, // subpacket length (34 = 1 type + 1 key version + 32 fp)
+                0x21, // subpacket type 33 (Issuer Fingerprint)
+                0x06, // key version 6
+                // 32 bytes fingerprint filled below
+                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                0x00, 0x00, 0x00, 0x00, // unhashed subpacket data length (0)
+                0x00, 0x00, // hash prefix
+        };
+        System.arraycopy(fingerprint, 0, v6Sig, 16, 32);
+        String armored = AscCombiner.armor(v6Sig);
+        String expected = "0102030405060708090A0B0C0D0E0F101112131415161718191A1B1C1D1E1F20";
+        assertEquals(expected, AscCombiner.extractV6IssuerFingerprint(armored));
+    }
+
+    @Test
+    void extractV6IssuerFingerprint_v4ReturnsNull() {
+        assertNull(AscCombiner.extractV6IssuerFingerprint(ARMORED_BLOCK_1));
+    }
+
+    @Test
     void detectSignatureVersion_compressedDataWrapper_v6() {
         byte[] compressedWrapped = new byte[] {
                 (byte) 0xA3, // tag 8, old format, indeterminate length
