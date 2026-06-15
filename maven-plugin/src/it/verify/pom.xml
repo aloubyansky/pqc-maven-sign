@@ -4,7 +4,7 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
     <groupId>io.github.aloubyansky.pqc.maven.it</groupId>
-    <artifactId>verify-dependencies-test</artifactId>
+    <artifactId>verify-test</artifactId>
     <version>1.0-SNAPSHOT</version>
     <properties>
         <maven.compiler.source>17</maven.compiler.source>
@@ -24,12 +24,21 @@
                 <artifactId>pqc-sign-maven-plugin</artifactId>
                 <version>@project.version@</version>
                 <executions>
+                    <!-- Phase 1: generate trust-config.yaml from actual dependency signatures -->
                     <execution>
-                        <goals><goal>verify-dependencies</goal></goals>
+                        <id>generate-config</id>
+                        <goals><goal>dependency-signers</goal></goals>
                         <configuration>
-                            <keysMap>${project.basedir}/keys.map</keysMap>
-                            <unmappedPolicy>skip</unmappedPolicy>
-                            <failIfPqcUnchecked>false</failIfPqcUnchecked>
+                            <generateTrustConfig>${project.basedir}/trust-config.yaml</generateTrustConfig>
+                            <fetchSignerInfo>true</fetchSignerInfo>
+                        </configuration>
+                    </execution>
+                    <!-- Phase 2: verify dependencies against the generated config -->
+                    <execution>
+                        <id>verify-trust</id>
+                        <goals><goal>verify</goal></goals>
+                        <configuration>
+                            <trustConfigFile>${project.basedir}/trust-config.yaml</trustConfigFile>
                         </configuration>
                     </execution>
                 </executions>

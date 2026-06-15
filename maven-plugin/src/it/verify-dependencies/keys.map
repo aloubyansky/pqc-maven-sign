@@ -1,2 +1,0 @@
-# Empty keys.map - all dependencies are unmapped
-# With unmappedPolicy=skip, this allows the test to run without GPG keys
