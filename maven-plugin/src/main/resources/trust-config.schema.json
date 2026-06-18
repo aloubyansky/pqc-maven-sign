@@ -1,0 +1,203 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/aloubyansky/pqc-maven-sign/trust-config.schema.json",
+  "title": "Trust Configuration",
+  "description": "Defines trusted signers, artifact groups, and trust mappings for Maven dependency signature verification.",
+  "type": "object",
+  "properties": {
+    "settings": {
+      "$ref": "#/$defs/settings"
+    },
+    "signers": {
+      "$ref": "#/$defs/signers"
+    },
+    "artifacts": {
+      "$ref": "#/$defs/artifacts"
+    },
+    "trust": {
+      "$ref": "#/$defs/trust"
+    },
+    "unsigned": {
+      "$ref": "#/$defs/unsigned"
+    }
+  },
+  "required": ["trust"],
+  "additionalProperties": false,
+  "$defs": {
+    "settings": {
+      "type": "object",
+      "description": "Global verification settings.",
+      "properties": {
+        "keyservers": {
+          "type": "array",
+          "description": "Keyserver URLs for fetching public keys.",
+          "items": {
+            "type": "string"
+          },
+          "examples": [["hkps://keys.openpgp.org", "hkps://keyserver.ubuntu.com"]]
+        },
+        "on-untrusted": {
+          "type": "string",
+          "enum": ["fail", "warn"],
+          "default": "fail",
+          "description": "Policy when an artifact is signed by an untrusted signer."
+        },
+        "verify-all-signatures": {
+          "type": "boolean",
+          "default": true,
+          "description": "When true, all present signatures must verify. When false, one trusted signature is sufficient."
+        },
+        "fetch-signer-info": {
+          "type": "boolean",
+          "default": true,
+          "description": "Whether to fetch signer information from keyservers when not locally available."
+        }
+      },
+      "additionalProperties": false
+    },
+    "signers": {
+      "type": "object",
+      "description": "Named signer definitions. Each signer can be defined in minimal, short, or full form.",
+      "additionalProperties": {
+        "$ref": "#/$defs/signer"
+      }
+    },
+    "signer": {
+      "description": "A signer definition in one of three forms: minimal (uid string), short (single-key object), or full (object with members array).",
+      "oneOf": [
+        {
+          "$ref": "#/$defs/signerMinimal"
+        },
+        {
+          "$ref": "#/$defs/signerShort"
+        },
+        {
+          "$ref": "#/$defs/signerFull"
+        }
+      ]
+    },
+    "signerMinimal": {
+      "type": "string",
+      "description": "Minimal form: a uid string (e.g. \"Jane Doe <jane@example.com>\"). Matches by signer identity only."
+    },
+    "signerShort": {
+      "type": "object",
+      "description": "Short form: a single-key signer with gpg/pqc fingerprint and/or uid directly on the object.",
+      "properties": {
+        "gpg": {
+          "type": "string",
+          "description": "GPG key fingerprint (hex, minimum 16 characters).",
+          "pattern": "^[0-9A-Fa-f]{16,}$"
+        },
+        "pqc": {
+          "type": "string",
+          "description": "PQC key fingerprint (hex).",
+          "pattern": "^[0-9A-Fa-f]+$"
+        },
+        "uid": {
+          "type": "string",
+          "description": "Signer user ID in \"Name <email>\" format."
+        }
+      },
+      "anyOf": [
+        { "required": ["gpg"] },
+        { "required": ["pqc"] },
+        { "required": ["uid"] }
+      ],
+      "not": {
+        "required": ["members"]
+      },
+      "additionalProperties": false
+    },
+    "signerFull": {
+      "type": "object",
+      "description": "Full form: a signer group with an optional display name and a list of members.",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Display name for the signer group (e.g. \"Apache Software Foundation\")."
+        },
+        "members": {
+          "type": "array",
+          "description": "List of individual signer credentials belonging to this group.",
+          "items": {
+            "$ref": "#/$defs/memberEntry"
+          },
+          "minItems": 1
+        }
+      },
+      "required": ["members"],
+      "additionalProperties": false
+    },
+    "memberEntry": {
+      "type": "object",
+      "description": "A single signer credential within a signer group.",
+      "properties": {
+        "gpg": {
+          "type": "string",
+          "description": "GPG key fingerprint (hex, minimum 16 characters).",
+          "pattern": "^[0-9A-Fa-f]{16,}$"
+        },
+        "pqc": {
+          "type": "string",
+          "description": "PQC key fingerprint (hex).",
+          "pattern": "^[0-9A-Fa-f]+$"
+        },
+        "uid": {
+          "type": "string",
+          "description": "Signer user ID in \"Name <email>\" format."
+        }
+      },
+      "anyOf": [
+        { "required": ["gpg"] },
+        { "required": ["pqc"] },
+        { "required": ["uid"] }
+      ],
+      "additionalProperties": false
+    },
+    "artifacts": {
+      "type": "object",
+      "description": "Named artifact groups. Each group maps a logical name to a list of Maven coordinate patterns.",
+      "additionalProperties": {
+        "type": "array",
+        "items": {
+          "type": "string",
+          "description": "Maven coordinate pattern (e.g. \"org.apache.maven.*\", \"com.example:lib\", \"com.example:lib:1.0\")."
+        },
+        "minItems": 1
+      }
+    },
+    "trust": {
+      "type": "object",
+      "description": "Maps artifact patterns or artifact group names to trusted signer references. If a key matches a name defined in 'artifacts', it is resolved as a group reference; otherwise it is treated as a Maven coordinate pattern.",
+      "additionalProperties": {
+        "$ref": "#/$defs/signerRef"
+      }
+    },
+    "signerRef": {
+      "description": "One or more references to signers defined in the 'signers' section.",
+      "oneOf": [
+        {
+          "type": "string",
+          "description": "A single signer reference."
+        },
+        {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "description": "Multiple signer references (any of them is trusted)."
+        }
+      ]
+    },
+    "unsigned": {
+      "type": "array",
+      "description": "Artifact patterns or artifact group names for which no signature is expected. These artifacts are skipped during verification.",
+      "items": {
+        "type": "string",
+        "description": "Maven coordinate pattern or artifact group name."
+      }
+    }
+  }
+}

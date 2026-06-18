@@ -405,12 +405,12 @@ Bound to the `verify` phase. Signs all project artifacts (JAR, POM, sources, jav
 mvn verify -Dpqc.fingerprint=<FINGERPRINT>
 ```
 
-### `pqc-sign:verify`
+### `pqc-sign:verify-artifact`
 
-Verify a signed artifact:
+Verify a single signed artifact (standalone, no project required):
 
 ```bash
-mvn pqc-sign:verify \
+mvn pqc-sign:verify-artifact \
   -Dfile=artifact.jar \
   -Dsignature=artifact.jar.asc \
   -Dpqc.fingerprint=<FINGERPRINT> \
@@ -426,21 +426,123 @@ mvn pqc-sign:verify \
 | `pqc.sqHome` | No | `~/.local/share/sequoia` | Sequoia keystore directory |
 | `pqc.strict` | No | `false` | Require both signatures to pass |
 
+### `pqc-sign:verify`
+
+Verifies that all project dependencies are signed by trusted signers as defined in a `trust-config.yaml` file. Matching is done by GPG/PQC fingerprint when available, falling back to signer user ID. Artifacts listed in the `unsigned` section are skipped.
+
+```bash
+mvn pqc-sign:verify
+```
+
+The goal looks for `trust-config.yaml` in the project root by default. The config file uses YAML and has five sections:
+
+```yaml
+settings:
+  keyservers:
+    - hkps://keys.openpgp.org
+  on-untrusted: fail
+  verify-all-signatures: true
+  fetch-signer-info: true
+
+signers:
+  # Full form: organization with multiple members
+  apache:
+    name: "Apache Software Foundation"
+    members:
+      - gpg: "4AEE18F83AFDEB23468B2E5A2D7BAF3C1E9F5A12"
+        uid: "Maven PMC <dev@maven.apache.org>"
+      - gpg: "BBE7232D7991050B54C8EA0ADC08637CA615D22C"
+
+  # Short form: single-key signer
+  jane:
+    gpg: "DEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEF"
+    uid: "Jane Doe <jane@example.com>"
+
+  # Minimal form: uid only
+  jackson-dev: "Tatu Saloranta <tatu@fasterxml.com>"
+
+artifacts:
+  apache-stack:
+    - org.apache.maven.*
+    - org.apache.commons.*
+
+trust:
+  apache-stack: apache
+  quarkus-stack: [redhat, jboss-community]
+  com.fasterxml.jackson.*: jackson-dev
+  com.example:lib: jane
+
+unsigned:
+  - com.internal.*
+```
+
+**Signers** define trusted identities in three forms: full (organization with multiple members), short (single key), or minimal (uid string only). Each member can specify a GPG fingerprint (`gpg`), PQC fingerprint (`pqc`), and/or user ID (`uid`). Fingerprints are matched first; uid is used as a fallback.
+
+**Artifacts** define named groups of coordinate patterns, referenced by name in `trust`.
+
+**Trust** maps artifact patterns or artifact group names to signer references. If a key matches a name in `artifacts`, it is expanded; otherwise it is treated as a Maven coordinate pattern. Patterns support: `groupId`, `groupId:artifactId`, `groupId:artifactId:version`, or `groupId:artifactId:type:classifier:version`. Wildcards (`*`) and group prefixes (`org.apache.*`) are supported. When multiple patterns match, the most specific wins.
+
+**Unsigned** lists artifact patterns for which no signature is expected.
+
+**Generating the config.** Use `dependency-signers` with `-Dpqc.generateTrustConfig=true` to generate an initial `trust-config.yaml` from your project's actual dependency signatures.
+
+**Updating the config.** Use `dependency-signers` with `-Dpqc.updateTrustConfig=true` to append any newly added dependencies to an existing config.
+
+Example output:
+
+```
+Signer: Jane Doe <jane@example.com>
+   GPG: DEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEF
+     com.example:lib:1.0
+
+UNTRUSTED
+  Signer: Unknown <unknown@example.com> (not trusted)
+     GPG: DEADBEEFDEADBEEF
+       com.other:tool:3.0
+
+  UNSIGNED
+       org.wildfly.common:wildfly-common:2.0.1
+
+TRUSTED UNSIGNED
+     com.internal:util:1.0
+
+Summary: 1 passed, 2 failed
+```
+
+| Property | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `pqc.trustConfig` | No | `${project.basedir}/trust-config.yaml` | Path to the trust configuration file |
+| `pqc.onUntrusted` | No | — | Policy for untrusted artifacts: `fail` or `warn`. Overrides the config file setting. |
+| `pqc.verifyAllSignatures` | No | — | When `true`, unverified signatures on trusted artifacts are reported. Overrides the config file setting. |
+| `pqc.fetchSignerInfo` | No | `false` | Fetch unknown GPG keys from keyservers. Overrides the config file setting. |
+| `pqc.keyservers` | No | `hkps://keyserver.ubuntu.com,hkps://keys.openpgp.org` | Comma-separated keyserver list. Used when `fetchSignerInfo` is enabled. |
+| `pqc.skip` | No | `false` | Skip verification |
+| `pqc.sqHome` | No | `~/.local/share/sequoia` | Sequoia keystore directory |
+| `pqc.includeTestDependencies` | No | `false` | Include test-scoped dependencies |
+
 ## Testing
 
 ### Unit Tests
 
 The unit tests run without any external tools (no GPG or sq required):
 
+**Core module:**
 - **CliToolTest** (4 tests) — process execution, stdout/stderr capture, exit code handling, checked execution
 - **AscCombinerTest** (7 tests) — two-block output, ordering, `extractBlock()` (first/second/out-of-range extraction), dearmoring
 - **HybridSignerTest** (1 test) — orchestration with mock signers, verifies two-block output
 - **HybridVerifierTest** (7 tests) — VerificationReport formatting, strict vs transitional modes, PASS/FAIL/NO_KEY/NOT_PRESENT scenarios
 
+**Maven plugin module:**
+- **TrustConfigParserTest** (23 tests) — YAML parsing of all signer forms (minimal/short/full), settings defaults and overrides, artifact groups, trust mappings, unsigned section, validation errors
+- **ArtifactMatcherTest** (10 tests) — unsigned patterns, artifact groups, group prefix matching, specificity scoring, multiple signer refs, wildcard matching
+- **TrustPatternCollapseTest** (12 tests) — within-group wildcard collapse, majority signer with exceptions, cross-group prefix merging, deeply nested hierarchies
+- **VerifyMojoTest** (15 tests) — fingerprint matching (exact, suffix, case insensitive), member-to-signature matching (GPG, PQC, uid, precedence rules)
+- **DependencySignersMojoTest** (8 tests) — signer reporting logic
+
 Run unit tests:
 
 ```bash
-mvn test -pl core
+mvn test
 ```
 
 ### Integration Tests
@@ -479,7 +581,12 @@ A fresh Sequoia keystore is created in a JUnit `@TempDir`. A PQC key is generate
 
 ### Maven Plugin Integration Tests
 
-The Maven plugin includes invoker tests under `maven-plugin/src/it/`. These require GPG, sq, and a configured PQC key. The invoker test signs a sample project and verifies that `.asc` files are produced with the expected structure.
+The Maven plugin includes invoker tests under `maven-plugin/src/it/`:
+
+- **dependency-signers** — reports signer information for a real dependency (commons-lang3)
+- **verify** — generates a `trust-config.yaml` via `dependency-signers`, then verifies dependencies against it
+- **update-trust-config** — creates a partial trust config, updates it with missing signers, verifies comments are preserved and no duplicate YAML sections exist
+- **sign-verify-roundtrip** — signs a sample project and verifies `.asc` structure (requires GPG + PQC-enabled sq)
 
 ## Known Limitations
 
@@ -522,7 +629,7 @@ core/                                    Core library
     VerificationResult.java              Result enum (PASS, FAIL, NO_KEY, NOT_PRESENT, SKIPPED)
     VerificationReport.java              Formatted verification report
 cli/                                     CLI tools (picocli)
-maven-plugin/                            Maven plugin (sign, verify, dependency-signers, verify-dependencies goals)
+maven-plugin/                            Maven plugin (sign, verify, verify-artifact, dependency-signers goals)
 ```
 
 ## PQC Signature Sizes
@@ -606,7 +713,7 @@ java -jar pqc-sign.jar verify \
 **Maven plugin:**
 
 ```bash
-mvn pqc-sign:verify \
+mvn pqc-sign:verify-artifact \
   -Dfile=my-artifact-1.0.jar \
   -Dsignature=my-artifact-1.0.jar.asc \
   -Dpqc.fingerprint=<FINGERPRINT> \
@@ -619,15 +726,40 @@ The `--strict` / `pqc.strict=true` flag requires both the classic GPG and PQC si
 
 Reports signer information for all project dependencies by downloading and inspecting their `.asc` signature files. Each armored block is reported separately with its OpenPGP version (v4 for classical GPG, v6 for PQC). Classical signatures are verified via GPG; PQC signatures are verified via Sequoia when the signer's certificate is available in the local cert store.
 
+Dependencies are grouped by signer, sorted alphabetically. Each signer block shows the signature type (GPG/PQC) and key ID, followed by the artifacts signed by that signer. Unsigned artifacts and unverified signatures are reported separately.
+
 ```bash
+# Report signers
 mvn pqc-sign:dependency-signers
+
+# Generate trust-config.yaml from actual signatures
+mvn pqc-sign:dependency-signers -Dpqc.generateTrustConfig=true -Dpqc.fetchSignerInfo=true
+
+# Update an existing trust-config.yaml with newly added dependencies
+mvn pqc-sign:dependency-signers -Dpqc.updateTrustConfig=true -Dpqc.fetchSignerInfo=true
 ```
+
+**Generating a trust config.** Use `-Dpqc.generateTrustConfig=true` to create an initial `trust-config.yaml` from your project's actual dependency signatures. The generated file groups artifacts by signer, collapses common groupId prefixes into wildcard patterns (e.g., `io.quarkus.*`), and lists unsigned artifacts in the `unsigned` section. The file can be used directly with the `verify` goal.
+
+**Updating a trust config.** Use `-Dpqc.updateTrustConfig=true` to add new dependency signers to an existing `trust-config.yaml`. This is useful after adding new dependencies — existing content including comments and formatting is preserved, and new entries are inserted at the end of each section. Review the changes with `git diff`.
 
 Example output:
 
 ```
-  com.example:lib:1.0   central   GPG   4AEE18F83AFDEB23   User <user@example.com>
-  com.example:lib:1.0   central   PQC   D62AAB339E45E5EA...   User <user@example.com>
+Signer: Alice <alice@example.com>
+   GPG: 4AEE18F83AFDEB23468B2E5A2D7BAF3C1E9F5A12
+   PQC: D62AAB339E45E5EA2FD036872B01D46A517A2991...
+     com.example:lib-a:1.0
+     com.example:lib-b:2.0
+
+Signer: NOT VERIFIED
+   GPG: DEADBEEFDEADBEEFDEADBEEF
+     com.other:tool:3.0
+
+UNSIGNED
+  com.internal:util:1.0
+
+Summary: All clear: 4 dependencies, 3 GPG signature(s), 1 PQC signature(s), 2 unique key(s)
 ```
 
 | Property | Required | Default | Description |
@@ -637,45 +769,9 @@ Example output:
 | `pqc.keyservers` | No | `hkps://keyserver.ubuntu.com,hkps://keys.openpgp.org` | Comma-separated list of keyservers for fetching GPG keys |
 | `pqc.sqHome` | No | `~/.local/share/sequoia` | Sequoia keystore directory for PQC cert lookup |
 | `pqc.includeTestDependencies` | No | `false` | Include test-scoped dependencies |
-
-**PQC signer resolution.** When a v6 (PQC) signature block is found, the plugin extracts the issuer fingerprint from the signature packet and looks up the corresponding certificate in the local Sequoia cert store. If the certificate is found (either by primary key or subkey fingerprint), the signature is verified and the signer's user ID and algorithm are reported. If the certificate is not in the store, the result is `NO_KEY` with the fingerprint displayed.
-
-### `pqc-sign:verify-dependencies`
-
-Verifies GPG and PQC signatures of all project dependencies against a keys map configuration file. Each dependency's signature is downloaded and verified; the goal fails the build if any signature check fails (configurable via policy).
-
-```bash
-mvn pqc-sign:verify-dependencies -Dpqc.keysMap=keys-map.properties
-```
-
-The keys map file maps artifact group/artifact patterns to expected signing keys:
-
-```properties
-# GPG fingerprint
-com.example = 0x4AEE18F83AFDEB23
-
-# PQC fingerprint
-com.example = pqc:D62AAB339E45E5EA2FD036872B01D46A517A299115599CCADD4C50A956F8E707
-
-# PQC certificate file
-com.example = pqc-cert:/path/to/signer.cert
-
-# Accept any valid signature
-org.apache = any
-
-# No signature expected
-test.group = nosig
-```
-
-| Property | Required | Default | Description |
-|----------|----------|---------|-------------|
-| `pqc.keysMap` | Yes | — | Path to the keys map properties file |
-| `pqc.skip` | No | `false` | Skip verification |
-| `pqc.unmappedPolicy` | No | `warn` | Policy for artifacts not in the keys map: `warn`, `fail`, or `skip` |
-| `pqc.failIfPqcUnchecked` | No | `true` | Fail the build if a PQC signature is present but no PQC key is configured |
-| `pqc.sqHome` | No | `~/.local/share/sequoia` | Sequoia keystore directory |
-| `pqc.verifyPomFiles` | No | `true` | Also verify POM file signatures |
-| `pqc.includeTestDependencies` | No | `false` | Include test-scoped dependencies |
+| `pqc.generateTrustConfig` | No | — | Generate a `trust-config.yaml`. Set to `true` to write to the project root, or provide a file path. Fails if the file already exists unless `pqc.overwrite=true`. |
+| `pqc.overwrite` | No | `false` | Allow overwriting an existing generated trust config file |
+| `pqc.updateTrustConfig` | No | — | Update an existing `trust-config.yaml` by appending unconfigured signers and artifacts. Set to `true` for the default location, or provide a file path. |
 
 ## References
 

@@ -1,6 +1,6 @@
 package io.github.aloubyansky.pqc.maven.plugin;
 
-import java.nio.file.Path;
+import java.io.File;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Set;
@@ -13,11 +13,7 @@ import org.apache.maven.plugins.annotations.Parameter;
 import org.apache.maven.project.MavenProject;
 import org.eclipse.aether.RepositorySystem;
 import org.eclipse.aether.RepositorySystemSession;
-import org.eclipse.aether.artifact.DefaultArtifact;
 import org.eclipse.aether.repository.RemoteRepository;
-import org.eclipse.aether.resolution.ArtifactRequest;
-import org.eclipse.aether.resolution.ArtifactResolutionException;
-import org.eclipse.aether.resolution.ArtifactResult;
 
 /**
  * Base class for Mojos that iterate over project dependencies and inspect their signatures.
@@ -41,6 +37,15 @@ abstract class AbstractDependencyMojo extends AbstractMojo {
     @Parameter(defaultValue = "${project.remoteProjectRepositories}", readonly = true)
     protected List<RemoteRepository> remoteRepos;
 
+    @Parameter(property = "pqc.fetchSignerInfo", defaultValue = "false")
+    protected boolean fetchSignerInfo;
+
+    @Parameter(property = "pqc.keyservers", defaultValue = "hkps://keyserver.ubuntu.com,hkps://keys.openpgp.org")
+    protected String keyservers;
+
+    @Parameter(property = "pqc.sqHome")
+    protected File sqHome;
+
     @Parameter(property = "pqc.includeTestDependencies", defaultValue = "false")
     protected boolean includeTestDependencies;
 
@@ -59,31 +64,5 @@ abstract class AbstractDependencyMojo extends AbstractMojo {
             artifacts = sorted;
         }
         return artifacts;
-    }
-
-    /**
-     * Downloads the .asc signature file for the given artifact from the specified repositories.
-     *
-     * @return the resolved artifact result, or null if no signature was found
-     */
-    protected ArtifactResult resolveSignature(Artifact artifact, List<RemoteRepository> repos) {
-        try {
-            org.eclipse.aether.artifact.Artifact aetherArtifact = new DefaultArtifact(
-                    artifact.getGroupId(),
-                    artifact.getArtifactId(),
-                    artifact.getClassifier(),
-                    artifact.getType() + ".asc",
-                    artifact.getVersion());
-            ArtifactRequest request = new ArtifactRequest(aetherArtifact, repos, null);
-            return repoSystem.resolveArtifact(repoSession, request);
-        } catch (ArtifactResolutionException e) {
-            getLog().debug("No .asc signature found for " + artifact);
-            return null;
-        }
-    }
-
-    Path downloadSignature(Artifact artifact) {
-        ArtifactResult result = resolveSignature(artifact, remoteRepos);
-        return result != null ? result.getArtifact().getFile().toPath() : null;
     }
 }
