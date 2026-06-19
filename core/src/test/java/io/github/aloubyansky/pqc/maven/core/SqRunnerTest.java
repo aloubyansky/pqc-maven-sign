@@ -2,7 +2,12 @@ package io.github.aloubyansky.pqc.maven.core;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 class SqRunnerTest {
 
@@ -85,5 +90,47 @@ class SqRunnerTest {
     @Test
     void parseCertInfo_noMatchingFields() {
         assertNull(SqRunner.parseCertInfo("some random output\n", null));
+    }
+
+    @Nested
+    class FindCertFileTests {
+
+        @TempDir
+        Path tempDir;
+
+        @Test
+        void directPathExistsReturnsIt() throws IOException {
+            String fingerprint = "ABCDEF1234567890ABCDEF1234567890ABCDEF1234567890ABCDEF1234567890";
+            Path certDir = tempDir.resolve("data").resolve("pgp.cert.d").resolve("ab");
+            Files.createDirectories(certDir);
+            Path certFile = certDir.resolve(
+                    "cdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890");
+            Files.writeString(certFile, "fake cert data");
+
+            SqRunner sq = new SqRunner(tempDir);
+            Path result = sq.findCertFile(fingerprint);
+            assertNotNull(result);
+            assertEquals(certFile, result);
+        }
+
+        @Test
+        void directPathMissingReturnsNull() {
+            String fingerprint = "ABCDEF1234567890ABCDEF1234567890ABCDEF1234567890ABCDEF1234567890";
+            SqRunner sq = new SqRunner(tempDir);
+            Path result = sq.findCertFile(fingerprint);
+            assertNull(result);
+        }
+
+        @Test
+        void nullFingerprintReturnsNull() {
+            SqRunner sq = new SqRunner(tempDir);
+            assertNull(sq.findCertFile(null));
+        }
+
+        @Test
+        void emptyFingerprintReturnsNull() {
+            SqRunner sq = new SqRunner(tempDir);
+            assertNull(sq.findCertFile(""));
+        }
     }
 }
