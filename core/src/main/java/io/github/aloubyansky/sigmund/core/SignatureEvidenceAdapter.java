@@ -106,7 +106,7 @@ public class SignatureEvidenceAdapter implements EvidenceProvider {
 
     private SignatureTool routeUnitToTool(VerificationUnit unit) {
         for (SignatureTool tool : tools) {
-            if (tool.isAvailable() && tool.canVerify(unit)) {
+            if (tool.canVerify(unit)) {
                 return tool;
             }
         }
@@ -160,7 +160,7 @@ public class SignatureEvidenceAdapter implements EvidenceProvider {
 
     private KeyImporter findKeyImporter() {
         for (SignatureTool tool : tools) {
-            if (tool instanceof KeyImporter ki && tool.isAvailable()) {
+            if (tool instanceof KeyImporter ki) {
                 return ki;
             }
         }

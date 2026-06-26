@@ -46,7 +46,7 @@ public record OidcCredential(String issuer, String subject) implements Credentia
      */
     @Override
     public String type() {
-        return "oidc";
+        return TYPE_OIDC;
     }
 
     @Override

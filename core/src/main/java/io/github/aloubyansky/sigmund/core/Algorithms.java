@@ -74,8 +74,8 @@ public final class Algorithms {
             return false;
         }
         for (var entry : ALGORITHM_NAMES.entrySet()) {
-            if (isPqcAlgorithm(entry.getKey()) && algorithmName.equals(entry.getValue())) {
-                return true;
+            if (algorithmName.equals(entry.getValue())) {
+                return isPqcAlgorithm(entry.getKey());
             }
         }
         return false;

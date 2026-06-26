@@ -30,7 +30,7 @@ public class OpenPgpSignatureFormat implements SignatureFormat {
 
     @Override
     public String name() {
-        return "openpgp";
+        return FORMAT_OPENPGP;
     }
 
     @Override
@@ -110,7 +110,7 @@ public class OpenPgpSignatureFormat implements SignatureFormat {
     }
 
     private OpenPgpVerificationUnit parseBlock(String block) {
-        AscCombiner.SignaturePacketInfo info = AscCombiner.inspectSignaturePacket(block);
+        OpenPgpSignaturePacketInfo info = AscCombiner.inspectSignaturePacket(block);
         return new OpenPgpVerificationUnit(
                 block,
                 info.version(),

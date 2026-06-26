@@ -125,10 +125,10 @@ class SigmundConfigParser {
         String displayName = textField(node, "name");
         List<Credential> credentials = new ArrayList<>();
 
-        addFingerprintCredential(credentials, node, "openpgp-v4", "openpgp-v4");
-        addFingerprintCredential(credentials, node, "gpg", "openpgp-v4");
-        addFingerprintCredential(credentials, node, "openpgp-v6", "openpgp-v6");
-        addFingerprintCredential(credentials, node, "pqc", "openpgp-v6");
+        addFingerprintCredential(credentials, node, Credential.TYPE_OPENPGP_V4, Credential.TYPE_OPENPGP_V4);
+        addFingerprintCredential(credentials, node, "gpg", Credential.TYPE_OPENPGP_V4);
+        addFingerprintCredential(credentials, node, Credential.TYPE_OPENPGP_V6, Credential.TYPE_OPENPGP_V6);
+        addFingerprintCredential(credentials, node, "pqc", Credential.TYPE_OPENPGP_V6);
         addEmailCredential(credentials, node);
         addOidcCredential(credentials, node);
         addUidCredentials(credentials, node, displayName);

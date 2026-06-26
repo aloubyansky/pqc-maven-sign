@@ -1,10 +1,15 @@
 package io.github.aloubyansky.sigmund.plugin;
 
 import io.github.aloubyansky.sigmund.core.GpgRunner;
-import io.github.aloubyansky.sigmund.core.HybridSigner;
+import io.github.aloubyansky.sigmund.core.Sigmund;
+import io.github.aloubyansky.sigmund.core.Signer;
+import io.github.aloubyansky.sigmund.core.SigningOutput;
 import io.github.aloubyansky.sigmund.core.SqRunner;
 import java.io.File;
+import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.List;
 import javax.inject.Inject;
@@ -48,9 +53,8 @@ import org.apache.maven.project.MavenProjectHelper;
  * </plugin>
  * }</pre>
  *
- * @see HybridSigner
- * @see GpgRunner
- * @see SqRunner
+ * @see Sigmund
+ * @see Signer
  */
 @Mojo(name = "sign", defaultPhase = LifecyclePhase.VERIFY, threadSafe = true)
 public class SignMojo extends AbstractMojo {
@@ -114,7 +118,7 @@ public class SignMojo extends AbstractMojo {
     public void execute() throws MojoExecutionException {
         getLog().info("Starting hybrid signing process...");
 
-        HybridSigner signer = createSigner();
+        Signer signer = createSigner();
         List<FileToSign> filesToSign = collectFilesToSign();
 
         getLog().info("Signing " + filesToSign.size() + " artifact(s)...");
@@ -126,20 +130,18 @@ public class SignMojo extends AbstractMojo {
         getLog().info("Hybrid signing completed successfully");
     }
 
-    /**
-     * Creates a HybridSigner configured with GPG and Sequoia tools.
-     *
-     * @return a configured HybridSigner instance
-     * @throws MojoExecutionException if signer creation fails
-     */
-    private HybridSigner createSigner() throws MojoExecutionException {
+    private Signer createSigner() throws MojoExecutionException {
         try {
             Path sequoiaHome = SequoiaHomeResolver.resolve(sqHome);
             GpgRunner gpg = new GpgRunner(gpgKeyName);
-            SqRunner sq = new SqRunner(sequoiaHome);
-            return new HybridSigner(gpg, sq, pqcFingerprint);
+            SqRunner sq = new SqRunner("sq", sequoiaHome, pqcFingerprint);
+            Sigmund sigmund = Sigmund.builder()
+                    .addTool(gpg)
+                    .addTool(sq)
+                    .build();
+            return sigmund.signer();
         } catch (Exception e) {
-            throw new MojoExecutionException("Failed to create hybrid signer", e);
+            throw new MojoExecutionException("Failed to create signer", e);
         }
     }
 
@@ -203,7 +205,7 @@ public class SignMojo extends AbstractMojo {
      * @param signer the hybrid signer to use
      * @throws MojoExecutionException if signing or attachment fails
      */
-    private void signAndAttach(FileToSign fileToSign, HybridSigner signer)
+    private void signAndAttach(FileToSign fileToSign, Signer signer)
             throws MojoExecutionException {
         File file = fileToSign.file;
         Path artifactPath = file.toPath();
@@ -212,9 +214,15 @@ public class SignMojo extends AbstractMojo {
         getLog().info("Signing: " + file.getName());
 
         try {
-            signer.sign(artifactPath, signaturePath);
+            SigningOutput output = signer.sign(artifactPath, artifactPath.getParent());
+            if (!output.files().isEmpty()) {
+                Path produced = output.files().get(0).path();
+                if (!produced.equals(signaturePath)) {
+                    Files.move(produced, signaturePath, StandardCopyOption.REPLACE_EXISTING);
+                }
+            }
             attachSignature(fileToSign, signaturePath.toFile());
-        } catch (Exception e) {
+        } catch (IOException e) {
             throw new MojoExecutionException("Failed to sign " + file.getName(), e);
         }
     }

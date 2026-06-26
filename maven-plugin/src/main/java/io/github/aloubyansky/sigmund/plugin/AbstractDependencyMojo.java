@@ -1,9 +1,14 @@
 package io.github.aloubyansky.sigmund.plugin;
 
+import io.github.aloubyansky.sigmund.core.DiscoveryConfig;
+import io.github.aloubyansky.sigmund.core.GpgRunner;
+import io.github.aloubyansky.sigmund.core.Sigmund;
+import io.github.aloubyansky.sigmund.core.SqRunner;
 import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import javax.inject.Inject;
 import org.apache.maven.artifact.Artifact;
 import org.apache.maven.plugin.AbstractMojo;
@@ -157,14 +162,24 @@ abstract class AbstractDependencyMojo extends AbstractMojo {
                 fileSettings.verifyAllSignatures(), effectiveFetch);
     }
 
-    /**
-     * Builds a {@link SignatureInspector} configured with keyservers according to the
-     * given settings.
-     */
+    protected Sigmund buildSigmund(TrustConfig.Settings settings) throws MojoExecutionException {
+        Sigmund.Builder builder = Sigmund.builder()
+                .addTool(new GpgRunner());
+        if (SqRunner.isToolAvailable()) {
+            builder.addTool(new SqRunner(SequoiaHomeResolver.resolve(sqHome)));
+        }
+        builder.discoveryConfig(new DiscoveryConfig(
+                settings.fetchSignerInfo(), false,
+                settings.keyservers(), Map.of()));
+        return builder.build();
+    }
+
     protected SignatureInspector buildInspector(TrustConfig.Settings settings)
             throws MojoExecutionException {
+        Sigmund sigmund = buildSigmund(settings);
         var builder = SignatureInspector.builder()
                 .log(getLog())
+                .sigmund(sigmund)
                 .repoSystem(repoSystem).repoSession(repoSession).remoteRepos(remoteRepos)
                 .sqHome(sqHome);
         if (settings.fetchSignerInfo()) {

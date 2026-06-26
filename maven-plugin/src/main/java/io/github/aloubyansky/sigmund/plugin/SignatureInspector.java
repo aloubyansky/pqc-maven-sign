@@ -1,14 +1,16 @@
 package io.github.aloubyansky.sigmund.plugin;
 
-import io.github.aloubyansky.sigmund.core.AscCombiner;
+import io.github.aloubyansky.sigmund.core.FileSignatureReport;
 import io.github.aloubyansky.sigmund.core.GpgRunner;
-import io.github.aloubyansky.sigmund.core.SignatureBlockVerifier;
+import io.github.aloubyansky.sigmund.core.KeyImporter;
+import io.github.aloubyansky.sigmund.core.OpenPgpVerifyResult;
+import io.github.aloubyansky.sigmund.core.Sigmund;
 import io.github.aloubyansky.sigmund.core.SignatureInfo;
+import io.github.aloubyansky.sigmund.core.SignatureVerificationReport;
 import io.github.aloubyansky.sigmund.core.SqRunner;
 import io.github.aloubyansky.sigmund.core.VerificationResult;
+import io.github.aloubyansky.sigmund.core.VerifyResult;
 import java.io.File;
-import java.io.IOException;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -30,7 +32,7 @@ import org.eclipse.aether.resolution.ArtifactResult;
  * Inspects OpenPGP signatures for Maven artifacts, extracting signer metadata
  * from both classical (v4/GPG) and PQC (v6) signature blocks.
  * <p>
- * Shared between {@link DependencySignersMojo} and {@link VerifyMojo}.
+ * Uses the {@link Sigmund} facade for signature verification.
  */
 class SignatureInspector {
 
@@ -38,8 +40,8 @@ class SignatureInspector {
     private final RepositorySystem repoSystem;
     private final RepositorySystemSession repoSession;
     private final List<RemoteRepository> remoteRepos;
-    private final GpgRunner gpg; // retained for fetchSignerInfoIfMissing/reverify
-    private final SignatureBlockVerifier blockVerifier;
+    private final Sigmund sigmund;
+    private final KeyImporter keyImporter;
     private final List<String> keyServers;
     private final Set<String> fetchedKeyIds = new HashSet<>();
 
@@ -48,14 +50,11 @@ class SignatureInspector {
         this.repoSystem = builder.repoSystem;
         this.repoSession = builder.repoSession;
         this.remoteRepos = builder.remoteRepos;
-        this.gpg = builder.gpg;
-        this.blockVerifier = new SignatureBlockVerifier(builder.gpg, builder.sq);
+        this.sigmund = builder.sigmund;
+        this.keyImporter = sigmund.findTool(KeyImporter.class);
         this.keyServers = List.copyOf(builder.keyServers);
     }
 
-    /**
-     * Creates a new builder for configuring a {@link SignatureInspector}.
-     */
     static Builder builder() {
         return new Builder();
     }
@@ -65,8 +64,7 @@ class SignatureInspector {
         private RepositorySystem repoSystem;
         private RepositorySystemSession repoSession;
         private List<RemoteRepository> remoteRepos;
-        private GpgRunner gpg;
-        private SqRunner sq;
+        private Sigmund sigmund;
         private File sqHome;
         private final List<String> keyServers = new ArrayList<>();
 
@@ -90,13 +88,8 @@ class SignatureInspector {
             return this;
         }
 
-        Builder gpgRunner(GpgRunner gpg) {
-            this.gpg = gpg;
-            return this;
-        }
-
-        Builder sqRunner(SqRunner sq) {
-            this.sq = sq;
+        Builder sigmund(Sigmund sigmund) {
+            this.sigmund = sigmund;
             return this;
         }
 
@@ -111,32 +104,20 @@ class SignatureInspector {
         }
 
         SignatureInspector build() throws MojoExecutionException {
-            if (gpg == null) {
-                if (!GpgRunner.isToolAvailable()) {
-                    throw new MojoExecutionException("GPG is not available on the system PATH");
+            if (sigmund == null) {
+                Sigmund.Builder sb = Sigmund.builder()
+                        .addTool(new GpgRunner());
+                if (SqRunner.isToolAvailable()) {
+                    sb.addTool(new SqRunner(SequoiaHomeResolver.resolve(sqHome)));
+                } else if (log != null) {
+                    log.debug("Sequoia (sq) not found - PQC signer info will not be available");
                 }
-                gpg = new GpgRunner();
-            }
-            if (sq == null) {
-                sq = createSqRunner(sqHome, log);
+                sigmund = sb.build();
             }
             return new SignatureInspector(this);
         }
     }
 
-    private static SqRunner createSqRunner(File sqHome, Log log) throws MojoExecutionException {
-        if (!SqRunner.isToolAvailable()) {
-            if (log != null) {
-                log.debug("Sequoia (sq) not found - PQC signer info will not be available");
-            }
-            return null;
-        }
-        return new SqRunner(SequoiaHomeResolver.resolve(sqHome));
-    }
-
-    /**
-     * Returns a human-readable label for the given OpenPGP signature version (e.g. "GPG", "PQC").
-     */
     static String versionLabel(int version) {
         return switch (version) {
             case 4 -> "GPG";
@@ -145,10 +126,6 @@ class SignatureInspector {
         };
     }
 
-    /**
-     * Inspects signatures for all given artifacts, returning a flat list of results.
-     * Each artifact may produce multiple entries (one per signature block).
-     */
     List<SignedArtifact> inspectAll(Collection<ArtifactCoords> artifacts) {
         List<SignedArtifact> results = new ArrayList<>();
         for (ArtifactCoords artifact : artifacts) {
@@ -157,18 +134,13 @@ class SignatureInspector {
         return results;
     }
 
-    /**
-     * Resolves the artifact, downloads its {@code .asc} signature and inspects each armored block.
-     * Returns one {@link SignedArtifact} per block, or a single {@code NOT_PRESENT} entry if no
-     * signature file exists.
-     */
     List<SignedArtifact> inspectSignatures(ArtifactCoords coords) {
         String coordsStr = coords.toString();
 
         ResolvedArtifact resolved = resolveArtifact(coords);
         if (resolved == null) {
             return List.of(new SignedArtifact(coordsStr, null,
-                    new SignatureInfo(-1, null, null, null, VerificationResult.NOT_PRESENT)));
+                    new SignatureInfo(-1, null, null, null, VerificationResult.SKIPPED)));
         }
 
         List<RemoteRepository> sigRepos = resolved.sourceRepo != null
@@ -177,123 +149,107 @@ class SignatureInspector {
         ArtifactResult sigResult = resolveSignature(coords, sigRepos);
         if (sigResult == null) {
             return List.of(new SignedArtifact(coordsStr, null,
-                    new SignatureInfo(-1, null, null, null, VerificationResult.NOT_PRESENT)));
+                    new SignatureInfo(-1, null, null, null, VerificationResult.SKIPPED)));
         }
 
         String repoId = resolveRepoId(sigResult);
-        String ascContent;
+        Path ascFile = sigResult.getArtifact().getFile().toPath();
+
+        SignatureVerificationReport report;
         try {
-            ascContent = Files.readString(sigResult.getArtifact().getFile().toPath());
-        } catch (IOException e) {
-            log.warn("Failed to read .asc file for " + coordsStr);
+            report = sigmund.verify(resolved.artifactFile, ascFile);
+        } catch (Exception e) {
+            log.warn("Verification failed for " + coordsStr + ": " + e.getMessage());
             return List.of(new SignedArtifact(coordsStr, repoId,
                     new SignatureInfo(-1, null, null, null, VerificationResult.FAIL)));
         }
 
-        List<String> blocks = AscCombiner.extractAllBlocks(ascContent);
-        if (blocks.isEmpty()) {
+        if (report.files().isEmpty()) {
             return List.of(new SignedArtifact(coordsStr, repoId,
-                    new SignatureInfo(-1, null, null, null, VerificationResult.NOT_PRESENT)));
+                    new SignatureInfo(-1, null, null, null, VerificationResult.SKIPPED)));
         }
 
         List<SignedArtifact> entries = new ArrayList<>();
-        for (String block : blocks) {
-            AscCombiner.SignaturePacketInfo pktInfo = AscCombiner.inspectSignaturePacket(block);
-            int version = pktInfo.version();
-
-            if (version > 0 && version <= 4) {
-                entries.add(inspectGpgBlock(coordsStr, repoId, block,
-                        pktInfo, resolved.artifactFile));
-            } else {
-                entries.add(inspectBlock(coordsStr, repoId, block,
-                        pktInfo, resolved.artifactFile));
+        for (FileSignatureReport fileReport : report.files()) {
+            if (fileReport.results().isEmpty()) {
+                entries.add(new SignedArtifact(coordsStr, repoId,
+                        new SignatureInfo(-1, null, null, null, VerificationResult.SKIPPED)));
+                continue;
+            }
+            for (VerifyResult vr : fileReport.results()) {
+                SignatureInfo sig = toSignatureInfo(vr);
+                SignedArtifact entry = new SignedArtifact(coordsStr, repoId, sig,
+                        resolved.artifactFile, ascFile);
+                SignedArtifact fetched;
+                try {
+                    fetched = fetchSignerInfoIfMissing(entry);
+                } catch (Exception e) {
+                    log.debug("Signer info fetch failed for " + coordsStr + ": " + e.getMessage());
+                    fetched = entry;
+                }
+                entries.add(new SignedArtifact(fetched.coordinates(), fetched.repoId(),
+                        fetched.signatureInfo()));
             }
         }
 
         return entries;
     }
 
-    /**
-     * Attempts to resolve signer identity by fetching the GPG key from configured keyservers
-     * when the entry has a key ID but no signer user ID. Re-verifies the signature after
-     * a successful key fetch to populate the signer metadata.
-     *
-     * @return the original entry if no fetch was needed, or a re-verified entry with updated metadata
-     */
+    private static SignatureInfo toSignatureInfo(VerifyResult vr) {
+        if (vr instanceof OpenPgpVerifyResult opvr) {
+            String keyId = opvr.fingerprint() != null ? opvr.fingerprint() : opvr.keyId();
+            return new SignatureInfo(opvr.version(), keyId, opvr.algorithm(),
+                    opvr.signerDisplayName(), opvr.result());
+        }
+        return new SignatureInfo(-1, null, vr.algorithm(),
+                vr.signerDisplayName(), vr.result());
+    }
+
     SignedArtifact fetchSignerInfoIfMissing(SignedArtifact entry) {
         SignatureInfo sig = entry.signatureInfo();
         if (keyServers.isEmpty() || sig.keyId() == null || sig.signerUserId() != null) {
             return entry;
         }
+        if (keyImporter == null) {
+            return entry;
+        }
         if (!fetchedKeyIds.add(sig.keyId())) {
-            // already attempted this key — re-verify to pick up the fetched key
             return reverify(entry);
         }
         for (String server : keyServers) {
-            if (gpg.receiveKey(sig.keyId(), server)) {
+            if (keyImporter.importKey(sig.keyId(), server)) {
                 return reverify(entry);
             }
         }
         return entry;
     }
 
-    /** Re-runs GPG verification to pick up newly fetched key metadata. */
     private SignedArtifact reverify(SignedArtifact entry) {
         if (entry.artifactFile() == null || entry.signatureFile() == null) {
             return entry;
         }
-        GpgRunner.VerifyResult verified = gpg.verifyFile(entry.artifactFile(), entry.signatureFile());
-        return new SignedArtifact(entry.coordinates(), entry.repoId(),
-                new SignatureInfo(entry.signatureInfo().version(), verified.keyId(),
-                        verified.algorithm(), verified.signerUserId(), verified.result()),
-                entry.artifactFile(), entry.signatureFile());
-    }
-
-    private SignedArtifact inspectBlock(String coords, String repoId, String block,
-            AscCombiner.SignaturePacketInfo pktInfo, Path artifactFile) {
         try {
-            SignatureInfo sig = blockVerifier.verify(artifactFile, block, pktInfo);
-            return new SignedArtifact(coords, repoId, sig);
-        } catch (Exception e) {
-            log.debug("Verification failed for " + coords + ": " + e.getMessage());
-            return new SignedArtifact(coords, repoId,
-                    new SignatureInfo(pktInfo.version(), pktInfo.issuerFingerprint(),
-                            null, null, VerificationResult.FAIL));
-        }
-    }
-
-    private SignedArtifact inspectGpgBlock(String coords, String repoId, String block,
-            AscCombiner.SignaturePacketInfo pktInfo, Path artifactFile) {
-        int effectiveVersion = pktInfo.version() > 0 ? pktInfo.version() : 4;
-        Path gpgSigFile = null;
-        try {
-            gpgSigFile = Files.createTempFile("gpg-sig-", ".asc");
-            Files.writeString(gpgSigFile, block);
-            SignatureInfo sig = blockVerifier.verifyGpgBlock(artifactFile, gpgSigFile, effectiveVersion);
-            SignedArtifact entry = new SignedArtifact(coords, repoId, sig,
-                    artifactFile, gpgSigFile);
-            SignedArtifact fetched;
-            try {
-                fetched = fetchSignerInfoIfMissing(entry);
-            } catch (Exception e) {
-                log.debug("Signer info fetch failed for " + coords + ": " + e.getMessage());
-                fetched = entry;
+            SignatureVerificationReport report = sigmund.verify(
+                    entry.artifactFile(), entry.signatureFile());
+            if (report.files().isEmpty()) {
+                return entry;
             }
-            return new SignedArtifact(fetched.coordinates(), fetched.repoId(),
-                    fetched.signatureInfo());
+            FileSignatureReport fileReport = report.files().get(0);
+            for (VerifyResult vr : fileReport.results()) {
+                if (vr instanceof OpenPgpVerifyResult opvr) {
+                    String keyId = opvr.fingerprint() != null ? opvr.fingerprint() : opvr.keyId();
+                    if (keyId != null && keyId.equalsIgnoreCase(entry.signatureInfo().keyId())) {
+                        return new SignedArtifact(entry.coordinates(), entry.repoId(),
+                                toSignatureInfo(vr), entry.artifactFile(), entry.signatureFile());
+                    }
+                }
+            }
         } catch (Exception e) {
-            log.debug("GPG verification failed for " + coords + ": " + e.getMessage());
-            return new SignedArtifact(coords, repoId,
-                    new SignatureInfo(effectiveVersion, null, null, null, VerificationResult.FAIL));
-        } finally {
-            deleteTempFile(gpgSigFile);
+            log.debug("Re-verification failed: " + e.getMessage());
         }
+        return entry;
     }
 
-    /**
-     * Resolves the artifact to obtain its local file and the remote repository
-     * it was originally fetched from.
-     */
     private ResolvedArtifact resolveArtifact(ArtifactCoords coords) {
         try {
             org.eclipse.aether.artifact.Artifact aetherArtifact = new DefaultArtifact(
@@ -310,7 +266,6 @@ class SignatureInspector {
         }
     }
 
-    /** Extracts the source remote repository from a resolution result. */
     private RemoteRepository extractSourceRepo(ArtifactResult result) {
         if (result.getLocalArtifactResult() != null
                 && result.getLocalArtifactResult().getRepository() != null) {
@@ -326,7 +281,6 @@ class SignatureInspector {
         return null;
     }
 
-    /** Resolves the {@code .asc} signature artifact from the given repositories. */
     private ArtifactResult resolveSignature(ArtifactCoords coords, List<RemoteRepository> repos) {
         try {
             org.eclipse.aether.artifact.Artifact aetherArtifact = new DefaultArtifact(
@@ -341,7 +295,6 @@ class SignatureInspector {
         }
     }
 
-    /** Finds the configured remote repository matching the given ID. */
     private RemoteRepository findMatchingRepo(String repoId) {
         if (repoId == null) {
             return null;
@@ -354,7 +307,6 @@ class SignatureInspector {
         return null;
     }
 
-    /** Extracts the repository ID from a resolved artifact result. */
     private String resolveRepoId(ArtifactResult result) {
         if (result.getLocalArtifactResult() != null
                 && result.getLocalArtifactResult().getRepository() != null) {
@@ -364,16 +316,6 @@ class SignatureInspector {
         return repo != null ? repo.getId() : null;
     }
 
-    private static void deleteTempFile(Path file) {
-        if (file != null) {
-            try {
-                Files.deleteIfExists(file);
-            } catch (IOException ignored) {
-            }
-        }
-    }
-
-    /** Splits a comma-separated keyserver string into a trimmed, non-empty list. */
     static List<String> parseKeyservers(String keyservers) {
         List<String> servers = new ArrayList<>();
         for (String s : keyservers.split(",")) {
@@ -388,16 +330,6 @@ class SignatureInspector {
     record ResolvedArtifact(Path artifactFile, RemoteRepository sourceRepo) {
     }
 
-    /**
-     * Associates a resolved artifact with its signature metadata and optional file paths
-     * for re-verification after key fetching.
-     *
-     * @param coordinates Maven coordinates (groupId:artifactId[:type][:classifier]:version)
-     * @param repoId identifier of the remote repository the artifact was resolved from, or {@code null}
-     * @param signatureInfo signature metadata (version, key ID, algorithm, signer, verification result)
-     * @param artifactFile local path to the artifact file, retained for re-verification; may be {@code null}
-     * @param signatureFile local path to the .asc signature file, retained for re-verification; may be {@code null}
-     */
     record SignedArtifact(String coordinates, String repoId, SignatureInfo signatureInfo,
             Path artifactFile, Path signatureFile) {
         SignedArtifact(String coordinates, String repoId, SignatureInfo signatureInfo) {

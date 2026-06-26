@@ -3,7 +3,7 @@ package io.github.aloubyansky.sigmund.core;
 /**
  * Aggregate outcome of verifying all signatures in a report.
  *
- * @see VerificationReport#outcome()
+ * @see SignatureVerificationReport#outcome()
  */
 public enum VerificationOutcome {
 

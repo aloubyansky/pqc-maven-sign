@@ -63,7 +63,8 @@ public class SqRunner implements SignatureTool, KeyGenerator, CertExporter {
     public static final String DEFAULT_CIPHER_SUITE = "mldsa87-ed448";
     public static final String DEFAULT_PQC_ALGORITHM = "ML-DSA-87+Ed448";
 
-    private static final Set<String> SUPPORTED_CREDENTIAL_TYPES = Set.of("openpgp-v4", "openpgp-v6");
+    private static final Set<String> SUPPORTED_CREDENTIAL_TYPES = Set.of(Credential.TYPE_OPENPGP_V4,
+            Credential.TYPE_OPENPGP_V6);
     private static final Pattern FINGERPRINT_PATTERN = Pattern.compile("(?i)(?:fingerprint:?\\s*)?([0-9A-F]{64})");
     private static final Pattern INSPECT_ALGO_PATTERN = Pattern.compile("Public-key algo:\\s+(.+)");
     private static final Pattern INSPECT_USERID_PATTERN = Pattern.compile("UserID:\\s+(.+)");
@@ -73,6 +74,7 @@ public class SqRunner implements SignatureTool, KeyGenerator, CertExporter {
     private final Path sequoiaHome;
     private final String signingFingerprint;
     private final OpenPgpSignatureFormat format;
+    private volatile String detectedAlgorithm;
 
     /**
      * Returns the default Sequoia home directory ({@code ~/.local/share/sequoia}).
@@ -472,8 +474,6 @@ public class SqRunner implements SignatureTool, KeyGenerator, CertExporter {
         }
     }
 
-    // --- SignatureTool SPI ---
-
     @Override
     public String name() {
         return "sq";
@@ -528,14 +528,24 @@ public class SqRunner implements SignatureTool, KeyGenerator, CertExporter {
             throw new IllegalStateException("No signing fingerprint configured");
         }
         sign(artifactFile, outputSig, signingFingerprint);
-        return new SignResult(DEFAULT_PQC_ALGORITHM);
+        if (detectedAlgorithm == null) {
+            try {
+                String armored = java.nio.file.Files.readString(outputSig);
+                OpenPgpSignaturePacketInfo info = AscCombiner.inspectSignaturePacket(armored);
+                String name = Algorithms.algorithmName(info.algorithmId());
+                detectedAlgorithm = name != null ? name : "unknown";
+            } catch (java.io.IOException e) {
+                detectedAlgorithm = "unknown";
+            }
+        }
+        return new SignResult(detectedAlgorithm);
     }
 
     /**
      * {@inheritDoc}
      * <p>
      * Verifies an OpenPGP v5+ signature block by resolving the issuer certificate
-     * from the Sequoia cert store. Logic absorbed from {@code SignatureBlockVerifier.verifySequoiaBlock()}.
+     * from the Sequoia cert store.
      */
     @Override
     public VerifyResult verify(Path artifactFile, VerificationUnit unit) {
@@ -551,13 +561,17 @@ public class SqRunner implements SignatureTool, KeyGenerator, CertExporter {
             return List.of();
         }
         if (result instanceof OpenPgpVerifyResult opvr && opvr.fingerprint() != null) {
-            String credType = opvr.version() < 6 ? "openpgp-v4" : "openpgp-v6";
-            return List.of(new FingerprintCredential(credType, opvr.fingerprint()));
+            String credType = opvr.version() < 6 ? Credential.TYPE_OPENPGP_V4 : Credential.TYPE_OPENPGP_V6;
+            List<Credential> creds = new ArrayList<>(2);
+            creds.add(new FingerprintCredential(credType, opvr.fingerprint()));
+            String email = GpgRunner.extractEmail(result.signerDisplayName());
+            if (email != null) {
+                creds.add(new EmailCredential(email));
+            }
+            return List.copyOf(creds);
         }
         return List.of();
     }
-
-    // --- Private helpers for SPI ---
 
     private OpenPgpVerifyResult verifyOpenPgpUnit(Path artifactFile, OpenPgpVerificationUnit opgu) {
         int version = opgu.packetVersion();

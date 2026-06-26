@@ -35,6 +35,9 @@ public class Signer {
      * @param tools the signing tools (must all have {@code canSign() → true})
      */
     Signer(List<SignatureTool> tools) {
+        if (tools.isEmpty()) {
+            throw new SigmundException("No signing tools available");
+        }
         this.tools = List.copyOf(tools);
     }
 
@@ -48,7 +51,7 @@ public class Signer {
      */
     public SigningOutput sign(Path artifactFile, Path outputDir) {
         List<ToolSignResult> toolResults = signWithTools(artifactFile, outputDir);
-        Map<SignatureFormat, List<ToolSignResult>> grouped = groupByFormat(toolResults);
+        Map<String, List<ToolSignResult>> grouped = groupByFormatName(toolResults);
         return combineAndWrite(artifactFile, outputDir, grouped);
     }
 
@@ -62,22 +65,22 @@ public class Signer {
         return results;
     }
 
-    private Map<SignatureFormat, List<ToolSignResult>> groupByFormat(List<ToolSignResult> results) {
-        Map<SignatureFormat, List<ToolSignResult>> grouped = new LinkedHashMap<>();
+    private Map<String, List<ToolSignResult>> groupByFormatName(List<ToolSignResult> results) {
+        Map<String, List<ToolSignResult>> grouped = new LinkedHashMap<>();
         for (ToolSignResult r : results) {
-            grouped.computeIfAbsent(r.tool.signatureFormat(), k -> new ArrayList<>()).add(r);
+            grouped.computeIfAbsent(r.tool.signatureFormat().name(), k -> new ArrayList<>()).add(r);
         }
         return grouped;
     }
 
     private SigningOutput combineAndWrite(Path artifactFile, Path outputDir,
-            Map<SignatureFormat, List<ToolSignResult>> grouped) {
+            Map<String, List<ToolSignResult>> grouped) {
         List<SignedFile> signedFiles = new ArrayList<>();
         String artifactName = artifactFile.getFileName().toString();
 
         for (var entry : grouped.entrySet()) {
-            SignatureFormat format = entry.getKey();
             List<ToolSignResult> results = entry.getValue();
+            SignatureFormat format = results.get(0).tool.signatureFormat();
 
             if (format.supportsCombining() && results.size() > 1) {
                 signedFiles.add(combineResults(artifactName, outputDir, format, results));

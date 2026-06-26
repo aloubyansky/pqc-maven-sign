@@ -19,58 +19,15 @@ import java.util.List;
  * <li>A verified Sigstore bundle produces an {@code EmailCredential("alice@example.com")}.</li>
  * </ul>
  *
+ * @param result the verification outcome
+ * @param provenCredentials the credentials proven by this evidence
+ * @param provider the evidence provider name (e.g., {@code "openpgp"}, {@code "sigstore"})
  * @see EvidenceProvider
  * @see TrustResult
  */
-public class EvidenceResult {
+public record EvidenceResult(VerificationResult result, List<Credential> provenCredentials, String provider) {
 
-    private final VerificationResult result;
-    private final List<Credential> provenCredentials;
-    private final String mechanism;
-
-    /**
-     * Creates a new evidence result.
-     *
-     * @param result the verification outcome
-     * @param provenCredentials the credentials proven by this evidence
-     * @param mechanism the verification mechanism name (e.g., {@code "openpgp"}, {@code "sigstore"})
-     */
-    public EvidenceResult(VerificationResult result, List<Credential> provenCredentials,
-            String mechanism) {
-        this.result = result;
-        this.provenCredentials = provenCredentials != null ? List.copyOf(provenCredentials) : List.of();
-        this.mechanism = mechanism;
-    }
-
-    /**
-     * Returns the verification outcome.
-     *
-     * @return the result (PASS, FAIL, NO_KEY, or SKIPPED)
-     */
-    public VerificationResult result() {
-        return result;
-    }
-
-    /**
-     * Returns the credentials that this evidence proves.
-     * <p>
-     * Empty when verification failed or a key was missing. May contain multiple
-     * credentials of different types (e.g., both an {@link OidcCredential} and an
-     * {@link EmailCredential} for a Sigstore verification).
-     *
-     * @return an unmodifiable list of proven credentials
-     */
-    public List<Credential> provenCredentials() {
-        return provenCredentials;
-    }
-
-    /**
-     * Returns the name of the verification mechanism (e.g., {@code "openpgp"},
-     * {@code "sigstore"}, {@code "slsa"}).
-     *
-     * @return the mechanism name
-     */
-    public String mechanism() {
-        return mechanism;
+    public EvidenceResult {
+        provenCredentials = provenCredentials != null ? List.copyOf(provenCredentials) : List.of();
     }
 }

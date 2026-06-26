@@ -33,6 +33,11 @@ package io.github.aloubyansky.sigmund.core;
  */
 public interface Credential {
 
+    String TYPE_OPENPGP_V4 = "openpgp-v4";
+    String TYPE_OPENPGP_V6 = "openpgp-v6";
+    String TYPE_EMAIL = "email";
+    String TYPE_OIDC = "oidc";
+
     /**
      * Returns the credential type identifier.
      * <p>

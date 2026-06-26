@@ -2,7 +2,10 @@ package io.github.aloubyansky.sigmund.plugin;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+import io.github.aloubyansky.sigmund.core.EmailCredential;
+import io.github.aloubyansky.sigmund.core.FingerprintCredential;
 import io.github.aloubyansky.sigmund.core.SignatureInfo;
+import io.github.aloubyansky.sigmund.core.SignerIdentity;
 import io.github.aloubyansky.sigmund.core.VerificationResult;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -52,173 +55,148 @@ class VerifyMojoTest {
     }
 
     @Nested
-    class FingerprintMatchTests {
+    class SignatureMatchTests {
 
-        @Test
-        void exactMatch() {
-            assertTrue(VerifyMojo.fingerprintsMatch(
-                    "4AEE18F83AFDEB23468B2E5A2D7BAF3C1E9F5A12",
-                    "4AEE18F83AFDEB23468B2E5A2D7BAF3C1E9F5A12"));
+        private SignerIdentity signerWithGpg(String fingerprint) {
+            return new SignerIdentity("test", "Test",
+                    List.of(new FingerprintCredential("openpgp-v4", fingerprint)));
         }
 
-        @Test
-        void suffixMatchExpectedLonger() {
-            assertTrue(VerifyMojo.fingerprintsMatch(
-                    "4AEE18F83AFDEB23468B2E5A2D7BAF3C1E9F5A12",
-                    "2D7BAF3C1E9F5A12"));
+        private SignerIdentity signerWithPqc(String fingerprint) {
+            return new SignerIdentity("test", "Test",
+                    List.of(new FingerprintCredential("openpgp-v6", fingerprint)));
         }
 
-        @Test
-        void suffixMatchActualLonger() {
-            assertTrue(VerifyMojo.fingerprintsMatch(
-                    "2D7BAF3C1E9F5A12",
-                    "4AEE18F83AFDEB23468B2E5A2D7BAF3C1E9F5A12"));
+        private SignerIdentity signerWithEmail(String email) {
+            return new SignerIdentity("test", "Test",
+                    List.of(new EmailCredential(email)));
         }
 
-        @Test
-        void caseInsensitive() {
-            assertTrue(VerifyMojo.fingerprintsMatch(
-                    "4aee18f83afdeb23468b2e5a2d7baf3c1e9f5a12",
-                    "4AEE18F83AFDEB23468B2E5A2D7BAF3C1E9F5A12"));
+        private SignerIdentity signerWithGpgAndEmail(String fingerprint, String email) {
+            return new SignerIdentity("test", "Test",
+                    List.of(new FingerprintCredential("openpgp-v4", fingerprint),
+                            new EmailCredential(email)));
         }
-
-        @Test
-        void tooShortRejected() {
-            assertFalse(VerifyMojo.fingerprintsMatch(
-                    "1E9F5A12",
-                    "4AEE18F83AFDEB23468B2E5A2D7BAF3C1E9F5A12"));
-        }
-
-        @Test
-        void noMatch() {
-            assertFalse(VerifyMojo.fingerprintsMatch(
-                    "AAAAAAAAAAAAAAAA",
-                    "BBBBBBBBBBBBBBBB"));
-        }
-    }
-
-    @Nested
-    class MemberMatchTests {
 
         @Test
         void gpgFingerprintMatch() {
-            var member = new TrustConfig.Member(
-                    "4AEE18F83AFDEB23468B2E5A2D7BAF3C1E9F5A12", null, null);
+            var signer = signerWithGpg("4AEE18F83AFDEB23468B2E5A2D7BAF3C1E9F5A12");
             var sig = new SignatureInfo(4,
                     "4AEE18F83AFDEB23468B2E5A2D7BAF3C1E9F5A12",
                     "RSA", "Alice <alice@example.com>", VerificationResult.PASS);
-            assertTrue(VerifyMojo.memberMatchesSignature(member, sig));
+            assertTrue(VerifyMojo.signatureMatchesSigner(signer, sig));
         }
 
         @Test
         void gpgFingerprintSuffixMatch() {
-            var member = new TrustConfig.Member(
-                    "4AEE18F83AFDEB23468B2E5A2D7BAF3C1E9F5A12", null, null);
+            var signer = signerWithGpg("4AEE18F83AFDEB23468B2E5A2D7BAF3C1E9F5A12");
             var sig = new SignatureInfo(4,
                     "2D7BAF3C1E9F5A12",
                     "RSA", "Alice <alice@example.com>", VerificationResult.PASS);
-            assertTrue(VerifyMojo.memberMatchesSignature(member, sig));
+            assertTrue(VerifyMojo.signatureMatchesSigner(signer, sig));
         }
 
         @Test
         void gpgFingerprintNoMatch() {
-            var member = new TrustConfig.Member(
-                    "4AEE18F83AFDEB23468B2E5A2D7BAF3C1E9F5A12", null, null);
+            var signer = signerWithGpg("4AEE18F83AFDEB23468B2E5A2D7BAF3C1E9F5A12");
             var sig = new SignatureInfo(4,
                     "BBBBBBBBBBBBBBBB",
                     "RSA", "Alice <alice@example.com>", VerificationResult.PASS);
-            assertFalse(VerifyMojo.memberMatchesSignature(member, sig));
+            assertFalse(VerifyMojo.signatureMatchesSigner(signer, sig));
         }
 
         @Test
         void pqcFingerprintMatchV6() {
-            var member = new TrustConfig.Member(null,
-                    "D62AAB339E45E5EA2FD036872B01D46A517A2991", null);
+            var signer = signerWithPqc("D62AAB339E45E5EA2FD036872B01D46A517A2991");
             var sig = new SignatureInfo(6,
                     "D62AAB339E45E5EA2FD036872B01D46A517A2991",
                     "ML-DSA", null, VerificationResult.PASS);
-            assertTrue(VerifyMojo.memberMatchesSignature(member, sig));
+            assertTrue(VerifyMojo.signatureMatchesSigner(signer, sig));
         }
 
         @Test
         void pqcFingerprintIgnoredForV4() {
-            var member = new TrustConfig.Member(null,
-                    "D62AAB339E45E5EA2FD036872B01D46A517A2991", null);
+            var signer = signerWithPqc("D62AAB339E45E5EA2FD036872B01D46A517A2991");
             var sig = new SignatureInfo(4,
                     "D62AAB339E45E5EA2FD036872B01D46A517A2991",
                     "RSA", null, VerificationResult.PASS);
-            assertFalse(VerifyMojo.memberMatchesSignature(member, sig));
+            assertFalse(VerifyMojo.signatureMatchesSigner(signer, sig));
         }
 
         @Test
-        void uidMatch() {
-            var member = new TrustConfig.Member(null, null, "Alice <alice@example.com>");
+        void emailMatch() {
+            var signer = signerWithEmail("alice@example.com");
             var sig = new SignatureInfo(4, "KEYID1234567890AB",
                     "RSA", "Alice <alice@example.com>", VerificationResult.PASS);
-            assertTrue(VerifyMojo.memberMatchesSignature(member, sig));
+            assertTrue(VerifyMojo.signatureMatchesSigner(signer, sig));
         }
 
         @Test
-        void uidNoMatch() {
-            var member = new TrustConfig.Member(null, null, "Alice <alice@example.com>");
+        void emailNoMatch() {
+            var signer = signerWithEmail("alice@example.com");
             var sig = new SignatureInfo(4, "KEYID1234567890AB",
                     "RSA", "Bob <bob@example.com>", VerificationResult.PASS);
-            assertFalse(VerifyMojo.memberMatchesSignature(member, sig));
+            assertFalse(VerifyMojo.signatureMatchesSigner(signer, sig));
         }
 
         @Test
-        void gpgTakesPrecedenceOverUid() {
-            var member = new TrustConfig.Member(
-                    "AAAAAAAAAAAAAAAA", null, "Alice <alice@example.com>");
+        void emailMatchWhenFingerprintDiffers() {
+            var signer = signerWithGpgAndEmail("AAAAAAAAAAAAAAAA", "alice@example.com");
             var sig = new SignatureInfo(4, "BBBBBBBBBBBBBBBB",
                     "RSA", "Alice <alice@example.com>", VerificationResult.PASS);
-            // GPG fingerprint doesn't match, so even though uid matches, it fails
-            assertFalse(VerifyMojo.memberMatchesSignature(member, sig));
+            // In credential model, ANY credential match is sufficient
+            assertTrue(VerifyMojo.signatureMatchesSigner(signer, sig));
         }
 
         @Test
         void gpgFingerprintIgnoredForV6() {
-            var member = new TrustConfig.Member(
-                    "4AEE18F83AFDEB23468B2E5A2D7BAF3C1E9F5A12", null, null);
+            var signer = signerWithGpg("4AEE18F83AFDEB23468B2E5A2D7BAF3C1E9F5A12");
             var sig = new SignatureInfo(6,
                     "4AEE18F83AFDEB23468B2E5A2D7BAF3C1E9F5A12",
                     "ML-DSA", null, VerificationResult.PASS);
-            assertFalse(VerifyMojo.memberMatchesSignature(member, sig));
+            assertFalse(VerifyMojo.signatureMatchesSigner(signer, sig));
         }
 
         @Test
         void notPresentAlwaysFalse() {
-            var member = new TrustConfig.Member(null, null, "Alice <alice@example.com>");
-            var sig = new SignatureInfo(-1, null, null, null, VerificationResult.NOT_PRESENT);
-            assertFalse(VerifyMojo.memberMatchesSignature(member, sig));
+            var signer = signerWithEmail("alice@example.com");
+            var sig = new SignatureInfo(-1, null, null, null, VerificationResult.SKIPPED);
+            assertFalse(VerifyMojo.signatureMatchesSigner(signer, sig));
         }
 
         @Test
         void failResultNeverMatchesGpg() {
-            var member = new TrustConfig.Member(
-                    "4AEE18F83AFDEB23468B2E5A2D7BAF3C1E9F5A12", null, null);
+            var signer = signerWithGpg("4AEE18F83AFDEB23468B2E5A2D7BAF3C1E9F5A12");
             var sig = new SignatureInfo(4,
                     "4AEE18F83AFDEB23468B2E5A2D7BAF3C1E9F5A12",
                     "RSA", "Alice <alice@example.com>", VerificationResult.FAIL);
-            assertFalse(VerifyMojo.memberMatchesSignature(member, sig));
+            assertFalse(VerifyMojo.signatureMatchesSigner(signer, sig));
         }
 
         @Test
         void failResultNeverMatchesPqc() {
-            var member = new TrustConfig.Member(null,
-                    "D62AAB339E45E5EA2FD036872B01D46A517A2991", null);
+            var signer = signerWithPqc("D62AAB339E45E5EA2FD036872B01D46A517A2991");
             var sig = new SignatureInfo(6,
                     "D62AAB339E45E5EA2FD036872B01D46A517A2991",
                     "ML-DSA", null, VerificationResult.FAIL);
-            assertFalse(VerifyMojo.memberMatchesSignature(member, sig));
+            assertFalse(VerifyMojo.signatureMatchesSigner(signer, sig));
         }
 
         @Test
-        void failResultNeverMatchesUid() {
-            var member = new TrustConfig.Member(null, null, "Alice <alice@example.com>");
+        void failResultNeverMatchesEmail() {
+            var signer = signerWithEmail("alice@example.com");
             var sig = new SignatureInfo(4, "KEYID1234567890AB",
                     "RSA", "Alice <alice@example.com>", VerificationResult.FAIL);
-            assertFalse(VerifyMojo.memberMatchesSignature(member, sig));
+            assertFalse(VerifyMojo.signatureMatchesSigner(signer, sig));
+        }
+
+        @Test
+        void noKeyDoesNotMatch() {
+            var signer = signerWithGpg("4AEE18F83AFDEB23468B2E5A2D7BAF3C1E9F5A12");
+            var sig = new SignatureInfo(4,
+                    "4AEE18F83AFDEB23468B2E5A2D7BAF3C1E9F5A12",
+                    "RSA", null, VerificationResult.NO_KEY);
+            assertTrue(VerifyMojo.signatureMatchesSigner(signer, sig));
         }
     }
 

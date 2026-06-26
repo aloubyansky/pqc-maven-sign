@@ -108,14 +108,14 @@ public class DependencySignersMojo extends AbstractDependencyMojo {
             List<SignedArtifact> signers = entry.getValue();
 
             boolean allUnsigned = signers.stream()
-                    .allMatch(s -> s.signatureInfo().result() == VerificationResult.NOT_PRESENT);
+                    .allMatch(s -> s.signatureInfo().result() == VerificationResult.SKIPPED);
             if (allUnsigned) {
                 unsignedCoords.add(coords);
                 continue;
             }
 
             String profileKey = signers.stream()
-                    .filter(s -> s.signatureInfo().result() != VerificationResult.NOT_PRESENT)
+                    .filter(s -> s.signatureInfo().result() != VerificationResult.SKIPPED)
                     .map(s -> s.signatureInfo().version() + ":"
                             + (s.signatureInfo().keyId() != null ? s.signatureInfo().keyId() : "?"))
                     .sorted()
@@ -162,7 +162,7 @@ public class DependencySignersMojo extends AbstractDependencyMojo {
             for (String coords : coordsList) {
                 for (SignedArtifact as : byArtifact.get(coords)) {
                     SignatureInfo sig = as.signatureInfo();
-                    if (sig.result() == VerificationResult.NOT_PRESENT) {
+                    if (sig.result() == VerificationResult.SKIPPED) {
                         continue;
                     }
                     String k = sig.version() + ":"
@@ -240,7 +240,7 @@ public class DependencySignersMojo extends AbstractDependencyMojo {
                 .distinct()
                 .count();
         long untrusted = results.stream()
-                .filter(r -> r.signatureInfo().result() == VerificationResult.NOT_PRESENT
+                .filter(r -> r.signatureInfo().result() == VerificationResult.SKIPPED
                         || r.signatureInfo().result() == VerificationResult.FAIL)
                 .map(SignedArtifact::coordinates)
                 .distinct()
@@ -250,7 +250,7 @@ public class DependencySignersMojo extends AbstractDependencyMojo {
                 .map(SignedArtifact::coordinates)
                 .collect(Collectors.toSet());
         long unidentified = results.stream()
-                .filter(r -> r.signatureInfo().result() != VerificationResult.NOT_PRESENT
+                .filter(r -> r.signatureInfo().result() != VerificationResult.SKIPPED
                         && r.signatureInfo().result() != VerificationResult.FAIL)
                 .map(SignedArtifact::coordinates)
                 .distinct()
@@ -334,7 +334,7 @@ public class DependencySignersMojo extends AbstractDependencyMojo {
             List<SignedArtifact> sigEntries = entry.getValue();
 
             boolean allUnsigned = sigEntries.stream()
-                    .allMatch(s -> s.signatureInfo().result() == VerificationResult.NOT_PRESENT);
+                    .allMatch(s -> s.signatureInfo().result() == VerificationResult.SKIPPED);
             if (allUnsigned) {
                 unsignedCoords.add(stripVersion(coords));
                 continue;
@@ -343,7 +343,7 @@ public class DependencySignersMojo extends AbstractDependencyMojo {
             String strippedCoords = stripVersion(coords);
             for (SignedArtifact sa : sigEntries) {
                 SignatureInfo sig = sa.signatureInfo();
-                if (sig.result() == VerificationResult.NOT_PRESENT || sig.keyId() == null) {
+                if (sig.result() == VerificationResult.SKIPPED || sig.keyId() == null) {
                     continue;
                 }
                 SignerInfo info = signersByKey.get(sig.keyId());
@@ -432,7 +432,7 @@ public class DependencySignersMojo extends AbstractDependencyMojo {
             }
 
             boolean allUnsigned = sigEntries.stream()
-                    .allMatch(s -> s.signatureInfo().result() == VerificationResult.NOT_PRESENT);
+                    .allMatch(s -> s.signatureInfo().result() == VerificationResult.SKIPPED);
             if (allUnsigned) {
                 newUnsigned.add(stripVersion(coords));
                 continue;
@@ -441,7 +441,7 @@ public class DependencySignersMojo extends AbstractDependencyMojo {
             String strippedCoords = stripVersion(coords);
             for (SignedArtifact sa : sigEntries) {
                 SignatureInfo sig = sa.signatureInfo();
-                if (sig.result() == VerificationResult.NOT_PRESENT || sig.keyId() == null) {
+                if (sig.result() == VerificationResult.SKIPPED || sig.keyId() == null) {
                     continue;
                 }
                 SignerInfo info = newSigners.get(sig.keyId());

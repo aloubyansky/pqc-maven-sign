@@ -33,7 +33,7 @@ public record EmailCredential(String email) implements Credential {
      */
     @Override
     public String type() {
-        return "email";
+        return TYPE_EMAIL;
     }
 
     @Override

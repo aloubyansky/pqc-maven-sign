@@ -1,6 +1,11 @@
 package io.github.aloubyansky.sigmund.plugin;
 
+import io.github.aloubyansky.sigmund.core.Credential;
+import io.github.aloubyansky.sigmund.core.EmailCredential;
+import io.github.aloubyansky.sigmund.core.FingerprintCredential;
+import io.github.aloubyansky.sigmund.core.GpgRunner;
 import io.github.aloubyansky.sigmund.core.SignatureInfo;
+import io.github.aloubyansky.sigmund.core.SignerIdentity;
 import io.github.aloubyansky.sigmund.core.VerificationResult;
 import io.github.aloubyansky.sigmund.plugin.SignatureInspector.SignedArtifact;
 import java.nio.file.Path;
@@ -23,36 +28,23 @@ import org.apache.maven.plugins.annotations.Parameter;
  * in a {@code trust-config.yaml} file.
  * <p>
  * For each dependency, signatures are inspected and matched against the configured
- * trust mappings. Matching is done by GPG/PQC fingerprint when available, falling
- * back to signer user ID matching. Artifacts in the {@code unsigned} section are
- * skipped. Artifacts not matching any trust pattern cause the build to fail or warn,
- * depending on the configured policy.
+ * trust mappings using the ADR-002 credential system. Matching is done via
+ * {@link FingerprintCredential} for key fingerprints and {@link EmailCredential}
+ * for signer UIDs. Artifacts in the {@code unsigned} section are skipped.
  *
- * @see TrustConfig
- * @see TrustConfigParser
+ * @see TrustConfigAdapter
+ * @see SignerIdentity
  * @see SignatureInspector
  */
 @Mojo(name = "verify", defaultPhase = LifecyclePhase.VALIDATE, threadSafe = true)
 public class VerifyMojo extends AbstractDependencyMojo {
 
-    /**
-     * Policy when an artifact is signed by an untrusted signer: {@code fail} or {@code warn}.
-     * Overrides the {@code on-untrusted} setting in the trust config file.
-     */
     @Parameter(property = "sigmund.onUntrusted")
     private String onUntrusted;
 
-    /**
-     * When {@code true}, all present signatures must verify. When {@code false},
-     * one verified trusted signature is sufficient.
-     * Overrides the {@code verify-all-signatures} setting in the trust config file.
-     */
     @Parameter(property = "sigmund.verifyAllSignatures")
     private Boolean verifyAllSignatures;
 
-    /**
-     * When {@code true}, also verifies signatures on POM files for each dependency.
-     */
     @Parameter(property = "sigmund.verifyPomFiles", defaultValue = "false")
     private boolean verifyPomFiles;
 
@@ -65,6 +57,7 @@ public class VerifyMojo extends AbstractDependencyMojo {
 
         TrustConfig config = loadConfig();
         TrustConfig.Settings settings = mergeSettings(config.settings());
+        TrustConfigAdapter adapter = new TrustConfigAdapter(config, settings);
 
         List<ArtifactCoords> artifacts = resolveDependencies();
         getLog().info("Verifying signers for " + artifacts.size() + " dependency(ies)...");
@@ -93,7 +86,7 @@ public class VerifyMojo extends AbstractDependencyMojo {
 
         if (inspector != null && !toInspect.isEmpty()) {
             List<SignedArtifact> inspected = inspector.inspectAll(toInspect);
-            verifySignatures(inspected, matchedSignerRefs, config, state);
+            verifySignatures(inspected, matchedSignerRefs, adapter, state);
         }
 
         if (inspector != null && !unmatchedArtifacts.isEmpty()) {
@@ -104,9 +97,6 @@ public class VerifyMojo extends AbstractDependencyMojo {
         failIfNeeded(state);
     }
 
-    /**
-     * Classifies each artifact as unsigned-allowed, trust-matched, or unmatched.
-     */
     private void classifyArtifacts(List<ArtifactCoords> artifacts, ArtifactMatcher matcher,
             List<ArtifactCoords> toInspect, List<String> skippedCoords,
             List<ArtifactCoords> unmatchedArtifacts,
@@ -129,11 +119,6 @@ public class VerifyMojo extends AbstractDependencyMojo {
         }
     }
 
-    /**
-     * For each artifact in the list, creates a corresponding POM artifact and adds it
-     * to the same list. If matchedSignerRefs is provided, the POM inherits the same
-     * signer refs as the original artifact.
-     */
     void addPomArtifacts(List<ArtifactCoords> artifacts,
             Map<String, List<String>> matchedSignerRefs) {
         List<ArtifactCoords> poms = new ArrayList<>();
@@ -155,11 +140,6 @@ public class VerifyMojo extends AbstractDependencyMojo {
         artifacts.addAll(poms);
     }
 
-    /**
-     * Inspects unmatched artifacts and classifies them as unsigned (no signature
-     * present) or signed but unconfigured (has a signature but no trust entry).
-     * Signed artifacts are grouped by signer uid for consistent report output.
-     */
     private void classifyUnmatched(SignatureInspector inspector,
             List<ArtifactCoords> unmatchedArtifacts, VerificationState state) {
         List<SignedArtifact> inspected = inspector.inspectAll(unmatchedArtifacts);
@@ -170,7 +150,7 @@ public class VerifyMojo extends AbstractDependencyMojo {
             List<SignedArtifact> sigEntries = entry.getValue();
 
             boolean allNotPresent = sigEntries.stream()
-                    .allMatch(s -> s.signatureInfo().result() == VerificationResult.NOT_PRESENT);
+                    .allMatch(s -> s.signatureInfo().result() == VerificationResult.SKIPPED);
 
             if (allNotPresent) {
                 state.unconfiguredUnsigned.add(coords);
@@ -199,12 +179,9 @@ public class VerifyMojo extends AbstractDependencyMojo {
         }
     }
 
-    /**
-     * Verifies inspected signatures against the trust configuration.
-     */
     private void verifySignatures(List<SignedArtifact> inspected,
             Map<String, List<String>> matchedSignerRefs,
-            TrustConfig config, VerificationState state) {
+            TrustConfigAdapter adapter, VerificationState state) {
         Map<String, List<SignedArtifact>> byArtifact = groupByCoordinates(inspected);
 
         for (var entry : byArtifact.entrySet()) {
@@ -212,19 +189,16 @@ public class VerifyMojo extends AbstractDependencyMojo {
             List<SignedArtifact> sigEntries = entry.getValue();
             List<String> signerRefs = matchedSignerRefs.getOrDefault(coords, List.of());
 
-            verifyArtifactSignatures(coords, sigEntries, signerRefs, config, state);
+            verifyArtifactSignatures(coords, sigEntries, signerRefs, adapter, state);
         }
     }
 
-    /**
-     * Verifies a single artifact's signatures against its trusted signer references.
-     */
     private void verifyArtifactSignatures(String coords, List<SignedArtifact> sigEntries,
-            List<String> signerRefs, TrustConfig config,
+            List<String> signerRefs, TrustConfigAdapter adapter,
             VerificationState state) {
         collectSignatureKeys(coords, sigEntries, state);
 
-        String matchedSignerRef = findMatchingSignerRef(sigEntries, signerRefs, config);
+        String matchedSignerRef = findMatchingSignerRef(sigEntries, signerRefs, adapter);
 
         if (matchedSignerRef != null) {
             state.trustedBySigner.computeIfAbsent(matchedSignerRef, k -> new ArrayList<>())
@@ -238,31 +212,38 @@ public class VerifyMojo extends AbstractDependencyMojo {
         }
     }
 
-    /**
-     * Finds the first signer reference whose configured credentials match any signature
-     * on the artifact. Checks fingerprints first, then falls back to uid matching.
-     */
     private String findMatchingSignerRef(List<SignedArtifact> sigEntries,
-            List<String> signerRefs, TrustConfig config) {
+            List<String> signerRefs, TrustConfigAdapter adapter) {
         for (String ref : signerRefs) {
-            TrustConfig.Signer signer = config.signers().get(ref);
+            SignerIdentity signer = adapter.signerIdentities().get(ref);
             if (signer == null) {
                 continue;
             }
-            if (matchesSigner(sigEntries, signer)) {
+            if (signerMatchesAny(signer, sigEntries)) {
                 return ref;
             }
         }
         return null;
     }
 
-    /**
-     * Checks whether any signature matches any member of the given signer definition.
-     */
-    private boolean matchesSigner(List<SignedArtifact> sigEntries, TrustConfig.Signer signer) {
-        for (TrustConfig.Member member : signer.members()) {
-            for (SignedArtifact sa : sigEntries) {
-                if (memberMatchesSignature(member, sa.signatureInfo())) {
+    private boolean signerMatchesAny(SignerIdentity signer, List<SignedArtifact> sigEntries) {
+        for (SignedArtifact sa : sigEntries) {
+            if (signatureMatchesSigner(signer, sa.signatureInfo())) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    static boolean signatureMatchesSigner(SignerIdentity signer, SignatureInfo sig) {
+        if (sig.result() == VerificationResult.SKIPPED
+                || sig.result() == VerificationResult.FAIL) {
+            return false;
+        }
+        List<Credential> proven = buildProvenCredentials(sig);
+        for (Credential p : proven) {
+            for (Credential expected : signer.credentials()) {
+                if (expected.matches(p)) {
                     return true;
                 }
             }
@@ -270,47 +251,26 @@ public class VerifyMojo extends AbstractDependencyMojo {
         return false;
     }
 
-    /**
-     * Matches a single member credential against a single signature.
-     * If the member has a fingerprint, it must match. If only uid, the uid must match.
-     */
-    static boolean memberMatchesSignature(TrustConfig.Member member, SignatureInfo sig) {
-        if (sig.result() == VerificationResult.NOT_PRESENT
-                || sig.result() == VerificationResult.FAIL) {
-            return false;
+    private static List<Credential> buildProvenCredentials(SignatureInfo sig) {
+        List<Credential> creds = new ArrayList<>();
+        if (sig.keyId() != null) {
+            String type = sig.version() < 6 ? "openpgp-v4" : "openpgp-v6";
+            creds.add(new FingerprintCredential(type, sig.keyId()));
         }
-        if (member.gpg() != null && sig.keyId() != null && sig.version() < 6) {
-            return fingerprintsMatch(member.gpg(), sig.keyId());
+        if (sig.signerUserId() != null) {
+            String email = GpgRunner.extractEmail(sig.signerUserId());
+            if (email != null) {
+                creds.add(new EmailCredential(email));
+            }
         }
-        if (member.pqc() != null && sig.keyId() != null && sig.version() >= 6) {
-            return fingerprintsMatch(member.pqc(), sig.keyId());
-        }
-        if (member.uid() != null && sig.signerUserId() != null) {
-            return member.uid().equals(sig.signerUserId());
-        }
-        return false;
-    }
-
-    static final int MIN_FINGERPRINT_LENGTH = 16;
-
-    /**
-     * Matches fingerprints allowing suffix matching (the shorter must be at least 16 chars).
-     */
-    static boolean fingerprintsMatch(String expected, String actual) {
-        if (expected.length() < MIN_FINGERPRINT_LENGTH
-                || actual.length() < MIN_FINGERPRINT_LENGTH) {
-            return false;
-        }
-        String e = expected.toUpperCase();
-        String a = actual.toUpperCase();
-        return e.length() >= a.length() ? e.endsWith(a) : a.endsWith(e);
+        return creds;
     }
 
     private void collectSignatureKeys(String coords, List<SignedArtifact> sigEntries,
             VerificationState state) {
         for (SignedArtifact sa : sigEntries) {
             SignatureInfo sig = sa.signatureInfo();
-            if (sig.result() == VerificationResult.NOT_PRESENT) {
+            if (sig.result() == VerificationResult.SKIPPED) {
                 continue;
             }
             String ver = SignatureInspector.versionLabel(sig.version());
@@ -321,15 +281,11 @@ public class VerifyMojo extends AbstractDependencyMojo {
         }
     }
 
-    /**
-     * Collects unverified signatures for an artifact that has a trusted signer match.
-     * These are reported as warnings but don't block the artifact from being trusted.
-     */
     private void collectUnverifiedSignatures(String coords, List<SignedArtifact> sigEntries,
             VerificationState state) {
         List<SignedArtifact> unverified = sigEntries.stream()
                 .filter(s -> s.signatureInfo().result() != VerificationResult.PASS
-                        && s.signatureInfo().result() != VerificationResult.NOT_PRESENT)
+                        && s.signatureInfo().result() != VerificationResult.SKIPPED)
                 .toList();
         if (unverified.isEmpty()) {
             return;
@@ -355,7 +311,7 @@ public class VerifyMojo extends AbstractDependencyMojo {
 
         if (signerIds.isEmpty()) {
             boolean unsigned = sigEntries.stream()
-                    .allMatch(s -> s.signatureInfo().result() == VerificationResult.NOT_PRESENT);
+                    .allMatch(s -> s.signatureInfo().result() == VerificationResult.SKIPPED);
             if (unsigned) {
                 state.unsignedCoords.add(coords);
                 state.failures.add(coords + ": unsigned");
@@ -531,10 +487,6 @@ public class VerifyMojo extends AbstractDependencyMojo {
         state.unsignedCoords.stream().sorted().forEach(c -> logLine(level, "     " + c));
     }
 
-    /**
-     * Reports unconfigured artifacts using the same signer/key/artifact format
-     * as the trusted section.
-     */
     private void reportUnconfigured(VerificationState state, int level, boolean[] printed) {
         boolean hasAny = !state.unconfiguredBySigner.isEmpty()
                 || !state.unconfiguredUnknownSigner.isEmpty()
@@ -623,7 +575,6 @@ public class VerifyMojo extends AbstractDependencyMojo {
             }
         }
 
-        // Use the display name or first member uid if available, falling back to the ref ID
         TrustConfig.Signer signerDef = state.config.signers().get(signerRef);
         String displayName = signerRef;
         if (signerDef != null) {
@@ -680,9 +631,6 @@ public class VerifyMojo extends AbstractDependencyMojo {
     record SignatureEntry(String signer, String keyLine) {
     }
 
-    /**
-     * Mutable state accumulated during verification.
-     */
     static class VerificationState {
         final boolean failPolicy;
         final boolean verifyAllSignatures;
@@ -707,7 +655,6 @@ public class VerifyMojo extends AbstractDependencyMojo {
             this.uidToSignerRef = buildUidIndex(config);
         }
 
-        /** Builds a lookup from member uid to signer ref ID. */
         private static Map<String, String> buildUidIndex(TrustConfig config) {
             Map<String, String> index = new HashMap<>();
             for (var entry : config.signers().entrySet()) {
@@ -721,7 +668,6 @@ public class VerifyMojo extends AbstractDependencyMojo {
             return index;
         }
 
-        /** Returns the signer ref ID that owns the given uid, or null. */
         String findRefForUid(String signerUid) {
             if (signerUid == null) {
                 return null;
@@ -733,12 +679,10 @@ public class VerifyMojo extends AbstractDependencyMojo {
             return config.signers().containsKey(signerUid) ? signerUid : null;
         }
 
-        /** Checks whether a uid belongs to the given signer ref. */
         boolean signerUidBelongsToRef(String signerUid, String signerRef) {
             return signerRef.equals(findRefForUid(signerUid));
         }
 
-        /** Checks whether a uid is associated with any trusted signer ref. */
         boolean isUidTrusted(String signerUid) {
             String ref = findRefForUid(signerUid);
             return ref != null && allTrustedSignerRefs.contains(ref);

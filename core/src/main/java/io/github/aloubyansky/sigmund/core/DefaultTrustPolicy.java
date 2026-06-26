@@ -1,6 +1,7 @@
 package io.github.aloubyansky.sigmund.core;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -44,7 +45,7 @@ public class DefaultTrustPolicy implements TrustPolicy {
 
     @Override
     public List<SignerIdentity> expectedSigners(ArtifactIdentity artifact) {
-        String bestPattern = findBestMatch(artifact, trustMappings.keySet());
+        String bestPattern = ArtifactPatternMatcher.findBestMatch(artifact, trustMappings.keySet());
         if (bestPattern == null) {
             return List.of();
         }
@@ -53,7 +54,7 @@ public class DefaultTrustPolicy implements TrustPolicy {
 
     @Override
     public boolean isUnsignedAllowed(ArtifactIdentity artifact) {
-        return findBestMatch(artifact, unsignedPatterns) != null;
+        return ArtifactPatternMatcher.findBestMatch(artifact, unsignedPatterns) != null;
     }
 
     @Override
@@ -66,106 +67,13 @@ public class DefaultTrustPolicy implements TrustPolicy {
         return untrustedPolicy;
     }
 
-    private String findBestMatch(ArtifactIdentity artifact, Iterable<String> patterns) {
-        String best = null;
-        int bestScore = -1;
-        for (String pattern : patterns) {
-            int score = matchScore(artifact, pattern);
-            if (score > bestScore) {
-                bestScore = score;
-                best = pattern;
-            }
-        }
-        return best;
-    }
-
-    static int matchScore(ArtifactIdentity artifact, String pattern) {
-        String[] parts = pattern.split(":", -1);
-        return switch (parts.length) {
-            case 1 -> scoreSegment(parts[0], artifact.namespace()) >= 0
-                    ? scoreNamespace(parts[0], artifact.namespace())
-                    : -1;
-            case 2 -> scoreTwoParts(parts, artifact);
-            case 3 -> scoreThreeParts(parts, artifact);
-            default -> -1;
-        };
-    }
-
-    private static int scoreTwoParts(String[] parts, ArtifactIdentity artifact) {
-        int ns = scoreSegment(parts[0], artifact.namespace());
-        int name = scoreSegment(parts[1], artifact.name());
-        if (ns < 0 || name < 0) {
-            return -1;
-        }
-        return scoreNamespace(parts[0], artifact.namespace()) + name;
-    }
-
-    private static int scoreThreeParts(String[] parts, ArtifactIdentity artifact) {
-        int ns = scoreSegment(parts[0], artifact.namespace());
-        int name = scoreSegment(parts[1], artifact.name());
-        int ver = scoreSegment(parts[2], artifact.version());
-        if (ns < 0 || name < 0 || ver < 0) {
-            return -1;
-        }
-        return scoreNamespace(parts[0], artifact.namespace()) + name + ver;
-    }
-
-    /**
-     * Namespace scoring: segment count × 10 to dominate other segments.
-     * "com.example" (2 segments) scores 20, "com.example.sub" (3 segments) scores 30.
-     */
-    private static int scoreNamespace(String pattern, String value) {
-        if ("*".equals(pattern)) {
-            return 0;
-        }
-        if (pattern.endsWith(".*")) {
-            String prefix = pattern.substring(0, pattern.length() - 2);
-            if (value.equals(prefix) || value.startsWith(prefix + ".")) {
-                return countSegments(prefix) * 10;
-            }
-            return -1;
-        }
-        if (pattern.equals(value)) {
-            return (countSegments(pattern) + 1) * 10;
-        }
-        return -1;
-    }
-
-    private static int scoreSegment(String pattern, String value) {
-        if ("*".equals(pattern)) {
-            return 0;
-        }
-        if (pattern.equals(value)) {
-            return 2;
-        }
-        if (pattern.endsWith(".*") || pattern.endsWith("*")) {
-            String prefix = pattern.endsWith(".*")
-                    ? pattern.substring(0, pattern.length() - 2)
-                    : pattern.substring(0, pattern.length() - 1);
-            if (value.startsWith(prefix)) {
-                return 1;
-            }
-        }
-        return -1;
-    }
-
-    private static int countSegments(String s) {
-        int count = 1;
-        for (int i = 0; i < s.length(); i++) {
-            if (s.charAt(i) == '.') {
-                count++;
-            }
-        }
-        return count;
-    }
-
     /**
      * Creates a builder-like list of trust mappings from raw parsed data.
      */
     static Map<String, List<SignerIdentity>> resolveTrustMappings(
             Map<String, List<String>> rawTrust,
             Map<String, SignerIdentity> signers) {
-        var result = new java.util.LinkedHashMap<String, List<SignerIdentity>>();
+        var result = new HashMap<String, List<SignerIdentity>>(rawTrust.size());
         for (var entry : rawTrust.entrySet()) {
             List<SignerIdentity> resolved = new ArrayList<>();
             for (String ref : entry.getValue()) {

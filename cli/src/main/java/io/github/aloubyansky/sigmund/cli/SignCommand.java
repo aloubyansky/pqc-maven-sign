@@ -1,7 +1,7 @@
 package io.github.aloubyansky.sigmund.cli;
 
 import io.github.aloubyansky.sigmund.core.GpgRunner;
-import io.github.aloubyansky.sigmund.core.HybridSigner;
+import io.github.aloubyansky.sigmund.core.Sigmund;
 import io.github.aloubyansky.sigmund.core.SqRunner;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -48,7 +48,7 @@ import picocli.CommandLine;
  * </ul>
  *
  *
- * @see HybridSigner
+ * @see Sigmund
  * @see GpgRunner
  * @see SqRunner
  */
@@ -106,7 +106,7 @@ public class SignCommand implements Callable<Integer> {
      * <ol>
      * <li>Resolves file paths (artifact, output, Sequoia home)</li>
      * <li>Creates {@link GpgRunner} and {@link SqRunner} instances</li>
-     * <li>Creates a {@link HybridSigner} using the factory method</li>
+     * <li>Creates a {@link Sigmund} signer using the builder</li>
      * <li>Generates the hybrid signature</li>
      * <li>Prints the output file path</li>
      * </ol>

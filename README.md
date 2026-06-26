@@ -214,7 +214,7 @@ artifact.jar
     |
     +-- sq sign --signature-file --> pqc.sig       (v6 PQC signature packet)
     |
-    +-- AscCombiner.combine() -----> artifact.jar.asc
+    +-- OpenPgpSignatureFormat.combine() -> artifact.jar.asc
 ```
 
 **Stage 1 — Classic GPG signature.** `GpgRunner` invokes GnuPG as an external process:
@@ -233,7 +233,7 @@ sq --overwrite sign --signer <fingerprint> --signature-file <sig> <artifact>
 
 Sequoia produces a detached ASCII-armored signature containing a v6 OpenPGP signature packet with the configured PQC hybrid cipher suite (ML-DSA-87+Ed448 by default) per RFC 9980. The PQC key must be in Sequoia's keystore (set via the `SEQUOIA_HOME` environment variable). The `--overwrite` flag is always passed to handle cases where the output file already exists (e.g., temp files).
 
-**Stage 3 — Combine.** `AscCombiner` concatenates the signatures into a single `.asc` file as separate armored blocks, classic first:
+**Stage 3 — Combine.** `OpenPgpSignatureFormat` concatenates the signatures into a single `.asc` file as separate armored blocks, classic first:
 
 ```
 -----BEGIN PGP SIGNATURE-----
@@ -261,7 +261,7 @@ artifact.jar + artifact.jar.asc
     +-- VerificationReport (all results)
 ```
 
-Each armored block is extracted into a temporary file and verified independently by `SignatureBlockVerifier`, which routes based on the OpenPGP signature version.
+Each armored block is parsed into a `VerificationUnit` and verified independently by the appropriate `SignatureTool`, routed via `canVerify()` based on the OpenPGP signature version.
 
 **Classic verification (v1-v4).** Runs `gpg --verify` against the local keyring.
 
@@ -597,7 +597,7 @@ The Maven plugin includes invoker tests under `maven-plugin/src/it/` covering de
 
 GnuPG returns exit code 2 (rather than 0) when verifying an `.asc` file that contains a v6 PQC packet. GPG processes all armored blocks in the file and warns about the unknown packet version. The signature itself is valid — GPG reports "Good signature" in its output.
 
-The `HybridVerifier` handles this by checking for "Good signature" in stderr when the exit code is 2. However, other tools or CI systems that check GPG's exit code strictly may interpret exit code 2 as a failure.
+`GpgRunner` handles this by checking for "Good signature" in stderr when the exit code is 2. However, other tools or CI systems that check GPG's exit code strictly may interpret exit code 2 as a failure.
 
 ### PQC key passphrase protection
 
@@ -611,7 +611,7 @@ The Sequoia PGP team [plans to release stable PQC support](https://sequoia-pgp.o
 
 ### PQC algorithm ID range
 
-The verifier classifies v5+ signature packets as PQC based on the public-key algorithm ID in the IANA OpenPGP Public Key Algorithms registry. As of RFC 9980, PQC algorithm IDs are 30-36 (ML-DSA, SLH-DSA, ML-KEM composites). This range is hardcoded in `AscCombiner.isPqcAlgorithm()` and will need updating if IANA registers additional PQC algorithms beyond this range.
+The verifier classifies v5+ signature packets as PQC based on the public-key algorithm ID in the IANA OpenPGP Public Key Algorithms registry. As of RFC 9980, PQC algorithm IDs are 30-36 (ML-DSA, SLH-DSA, ML-KEM composites). This range is hardcoded in `Algorithms.isPqcAlgorithm()` and will need updating if IANA registers additional PQC algorithms beyond this range.
 
 ### `sequoia-openpgp` PQC crate not on crates.io
 
@@ -640,7 +640,7 @@ With the default ML-DSA-87+Ed448 cipher suite, the PQC signature adds ~4.6 KB pe
 
 This PoC uses `io.github.aloubyansky.sigmund` as its groupId. The code is structured for future contribution to `maven-gpg-plugin`:
 
-- `HybridSigner` would extend `AbstractGpgSigner` as a new `signer=hybrid` option
+- `Signer` would extend `AbstractGpgSigner` as a new `signer=hybrid` option
 - Configuration parameters (`pqcFingerprint`, `sqHome`) would be added to the existing `sign` goal
 - The `verify` goal would be contributed as a new goal
 - Sequoia `sq` would become an optional dependency alongside GnuPG

@@ -18,8 +18,10 @@ import java.util.Map;
  *         .discover()
  *         .build();
  *
- * // Sign
+ * // Sign (default profile or all tools)
  * Signer signer = sigmund.signer();
+ * // Sign (named profile)
+ * Signer v6Signer = sigmund.signer("v6-only");
  * SigningOutput output = signer.sign(artifact, outputDir);
  *
  * // Verify trust
@@ -50,15 +52,18 @@ public class Sigmund {
 
     private final List<SignatureTool> tools;
     private final List<EvidenceProvider> evidenceProviders;
-    private final DiscoveryConfig discoveryConfig;
-    private final Map<String, SignatureFormat> formats;
+    private final SigningConfig signingConfig;
+    private final List<SignatureFormat> formats;
 
-    private Sigmund(List<SignatureTool> tools, List<EvidenceProvider> evidenceProviders,
-            DiscoveryConfig discoveryConfig) {
-        this.tools = List.copyOf(tools);
-        this.discoveryConfig = discoveryConfig;
-        this.formats = collectFormats(tools);
-        this.evidenceProviders = buildProviders(tools, evidenceProviders, discoveryConfig);
+    private Sigmund(List<SignatureTool> tools, List<SignatureFormat> formats,
+            List<EvidenceProvider> evidenceProviders, SigningConfig signingConfig) {
+        if (tools.isEmpty()) {
+            throw new SigmundException("No tools available");
+        }
+        this.tools = tools;
+        this.formats = formats;
+        this.evidenceProviders = evidenceProviders;
+        this.signingConfig = signingConfig;
     }
 
     /**
@@ -70,18 +75,47 @@ public class Sigmund {
         return new Builder();
     }
 
-    // --- Session creation ---
-
     /**
-     * Creates a signer using all tools where {@link SignatureTool#canSign()} is true.
+     * Creates a signer using the default profile (if configured) or all signing tools.
      *
      * @return a new signer
      */
     public Signer signer() {
+        if (signingConfig != null && signingConfig.defaultProfile() != null) {
+            return signer(signingConfig.defaultProfile());
+        }
         List<SignatureTool> signingTools = tools.stream()
                 .filter(SignatureTool::canSign)
                 .toList();
         return new Signer(signingTools);
+    }
+
+    /**
+     * Creates a signer using a named profile from the signing configuration.
+     * <p>
+     * The profile maps to a list of credential types; only tools whose
+     * {@link SignatureTool#supportedCredentialTypes()} intersects with the
+     * profile's credential types are included.
+     *
+     * @param profileName the profile name (e.g., {@code "hybrid"}, {@code "v6-only"})
+     * @return a new signer filtered to the profile's credential types
+     * @throws SigmundException if the profile name is not found in the signing config
+     */
+    public Signer signer(String profileName) {
+        if (signingConfig == null || signingConfig.profiles().isEmpty()) {
+            throw new SigmundException("No signing profiles configured");
+        }
+        List<String> credentialTypes = signingConfig.profiles().get(profileName);
+        if (credentialTypes == null) {
+            throw new SigmundException("Unknown signing profile: " + profileName
+                    + ". Available profiles: " + signingConfig.profiles().keySet());
+        }
+        List<SignatureTool> profileTools = tools.stream()
+                .filter(SignatureTool::canSign)
+                .filter(t -> t.supportedCredentialTypes().stream()
+                        .anyMatch(credentialTypes::contains))
+                .toList();
+        return new Signer(profileTools);
     }
 
     /**
@@ -95,8 +129,6 @@ public class Sigmund {
     public TrustVerifier verifier(TrustPolicy policy) {
         return new TrustVerifier(policy, evidenceProviders);
     }
-
-    // --- Direct signature verification ---
 
     /**
      * Verifies a single signature file against an artifact (no trust policy).
@@ -117,14 +149,12 @@ public class Sigmund {
      * @return the verification report
      */
     public SignatureVerificationReport verifyAll(Path artifactFile, List<Path> signatureFiles) {
-        List<FileSignatureReport> fileReports = new ArrayList<>();
+        List<FileSignatureReport> fileReports = new ArrayList<>(signatureFiles.size());
         for (Path sigFile : signatureFiles) {
             fileReports.add(verifySingleFile(artifactFile, sigFile));
         }
         return new SignatureVerificationReport(fileReports);
     }
-
-    // --- Tool access ---
 
     /**
      * Returns all registered tools.
@@ -183,8 +213,6 @@ public class Sigmund {
         return null;
     }
 
-    // --- Private ---
-
     private FileSignatureReport verifySingleFile(Path artifactFile, Path signatureFile) {
         SignatureFormat format = findFormat(signatureFile);
         if (format == null) {
@@ -202,7 +230,7 @@ public class Sigmund {
     }
 
     private SignatureFormat findFormat(Path signatureFile) {
-        for (SignatureFormat format : formats.values()) {
+        for (SignatureFormat format : formats) {
             if (format.canHandle(signatureFile)) {
                 return format;
             }
@@ -212,39 +240,12 @@ public class Sigmund {
 
     private SignatureTool findToolForUnit(VerificationUnit unit) {
         for (SignatureTool tool : tools) {
-            if (tool.isAvailable() && tool.canVerify(unit)) {
+            if (tool.canVerify(unit)) {
                 return tool;
             }
         }
         return null;
     }
-
-    private static Map<String, SignatureFormat> collectFormats(List<SignatureTool> tools) {
-        Map<String, SignatureFormat> formats = new LinkedHashMap<>();
-        for (SignatureTool tool : tools) {
-            formats.putIfAbsent(tool.signatureFormat().name(), tool.signatureFormat());
-        }
-        return formats;
-    }
-
-    private static List<EvidenceProvider> buildProviders(List<SignatureTool> tools,
-            List<EvidenceProvider> extraProviders, DiscoveryConfig discoveryConfig) {
-        Map<String, List<SignatureTool>> toolsByFormat = new LinkedHashMap<>();
-        for (SignatureTool tool : tools) {
-            toolsByFormat.computeIfAbsent(tool.signatureFormat().name(), k -> new ArrayList<>())
-                    .add(tool);
-        }
-
-        List<EvidenceProvider> providers = new ArrayList<>();
-        for (var entry : toolsByFormat.entrySet()) {
-            SignatureFormat format = entry.getValue().get(0).signatureFormat();
-            providers.add(new SignatureEvidenceAdapter(format, entry.getValue(), discoveryConfig));
-        }
-        providers.addAll(extraProviders);
-        return providers;
-    }
-
-    // --- Builder ---
 
     /**
      * Builder for constructing a {@link Sigmund} instance.
@@ -256,9 +257,11 @@ public class Sigmund {
      */
     public static class Builder {
 
-        private final Map<String, SignatureTool> toolsByName = new LinkedHashMap<>();
+        private final List<SignatureTool> tools = new ArrayList<>(2);
+        private final List<String> explicitToolNames = new ArrayList<>(2);
         private final List<EvidenceProvider> extraProviders = new ArrayList<>();
         private DiscoveryConfig discoveryConfig = DiscoveryConfig.DEFAULT;
+        private SigningConfig signingConfig;
         private boolean discovered;
 
         /**
@@ -296,6 +299,7 @@ public class Sigmund {
          */
         public Builder config(SigmundConfig config) {
             this.discoveryConfig = config.discoveryConfig();
+            this.signingConfig = config.signingConfig();
             return this;
         }
 
@@ -306,7 +310,11 @@ public class Sigmund {
          * @return this builder
          */
         public Builder addTool(SignatureTool tool) {
-            toolsByName.put(tool.name(), tool);
+            String name = tool.name();
+            tools.removeIf(t -> t.name().equals(name));
+            explicitToolNames.remove(name);
+            tools.add(tool);
+            explicitToolNames.add(name);
             return this;
         }
 
@@ -324,33 +332,65 @@ public class Sigmund {
         /**
          * Builds the {@link Sigmund} instance.
          * <p>
-         * Filters out tools/providers where {@code isAvailable()} returns false.
+         * Explicitly added tools that are not available cause a {@link SigmundException}.
+         * Discovered tools are silently skipped if unavailable.
          *
          * @return the configured Sigmund instance
+         * @throws SigmundException if an explicitly added tool is not available
          */
         public Sigmund build() {
             if (discovered) {
                 discoverTools();
             }
 
-            List<SignatureTool> available = toolsByName.values().stream()
-                    .filter(SignatureTool::isAvailable)
-                    .toList();
+            List<SignatureTool> available = new ArrayList<>(tools.size());
+            Map<String, List<SignatureTool>> toolsByFormat = new LinkedHashMap<>(2);
+            for (SignatureTool tool : tools) {
+                if (!tool.isAvailable()) {
+                    if (explicitToolNames.contains(tool.name())) {
+                        throw new SigmundException(
+                                "Tool '" + tool.name() + "' was explicitly added but is not available");
+                    }
+                    continue;
+                }
+                available.add(tool);
+                toolsByFormat.computeIfAbsent(tool.signatureFormat().name(), k -> new ArrayList<>(2))
+                        .add(tool);
+            }
 
-            List<EvidenceProvider> availableProviders = extraProviders.stream()
-                    .filter(EvidenceProvider::isAvailable)
-                    .toList();
+            List<SignatureFormat> formats = new ArrayList<>(toolsByFormat.size());
+            List<EvidenceProvider> providers = new ArrayList<>(toolsByFormat.size() + extraProviders.size());
+            for (List<SignatureTool> group : toolsByFormat.values()) {
+                SignatureFormat format = group.get(0).signatureFormat();
+                formats.add(format);
+                providers.add(new SignatureEvidenceAdapter(format, group, discoveryConfig));
+            }
+            for (EvidenceProvider ep : extraProviders) {
+                if (ep.isAvailable()) {
+                    providers.add(ep);
+                }
+            }
 
-            return new Sigmund(available, availableProviders, discoveryConfig);
+            return new Sigmund(List.copyOf(available), List.copyOf(formats),
+                    List.copyOf(providers), signingConfig);
         }
 
         private void discoverTools() {
-            if (!toolsByName.containsKey("gpg") && GpgRunner.isToolAvailable()) {
-                toolsByName.put("gpg", new GpgRunner());
+            if (findByName("gpg") == null && GpgRunner.isToolAvailable()) {
+                tools.add(new GpgRunner());
             }
-            if (!toolsByName.containsKey("sq") && SqRunner.isToolAvailable()) {
-                toolsByName.put("sq", new SqRunner(SqRunner.defaultHome()));
+            if (findByName("sq") == null && SqRunner.isToolAvailable()) {
+                tools.add(new SqRunner(SqRunner.defaultHome()));
             }
+        }
+
+        private SignatureTool findByName(String name) {
+            for (SignatureTool tool : tools) {
+                if (tool.name().equals(name)) {
+                    return tool;
+                }
+            }
+            return null;
         }
     }
 }

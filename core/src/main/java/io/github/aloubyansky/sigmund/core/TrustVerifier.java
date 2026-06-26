@@ -107,7 +107,7 @@ public class TrustVerifier {
         List<EvidenceResult> results = new ArrayList<>();
         for (Path evidenceFile : evidenceFiles) {
             for (EvidenceProvider provider : providers) {
-                if (provider.isAvailable() && provider.canHandle(evidenceFile)) {
+                if (provider.canHandle(evidenceFile)) {
                     results.addAll(provider.verify(artifactFile, evidenceFile));
                 }
             }

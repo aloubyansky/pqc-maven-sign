@@ -27,6 +27,8 @@ import java.util.List;
  */
 public interface SignatureFormat {
 
+    String FORMAT_OPENPGP = "openpgp";
+
     /**
      * Returns the format name.
      *
