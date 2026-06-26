@@ -85,7 +85,7 @@ class DependencySignersMojoTest {
                 }
 
                 @Override
-                public VerifyResult verify(java.nio.file.Path artifact, java.nio.file.Path signature) {
+                public VerifyResult verifyFile(java.nio.file.Path artifact, java.nio.file.Path signature) {
                     return new VerifyResult(VerificationResult.PASS,
                             "ABCD1234ABCD1234", "RSA", "Test User <test@example.com>");
                 }
@@ -120,7 +120,7 @@ class DependencySignersMojoTest {
             java.util.concurrent.atomic.AtomicInteger callCount = new java.util.concurrent.atomic.AtomicInteger();
             var gpg = new io.github.aloubyansky.sigmund.core.GpgRunner() {
                 @Override
-                public VerifyResult verify(java.nio.file.Path artifact, java.nio.file.Path signature) {
+                public VerifyResult verifyFile(java.nio.file.Path artifact, java.nio.file.Path signature) {
                     int call = callCount.incrementAndGet();
                     if (call == 1) {
                         return new VerifyResult(VerificationResult.PASS,

@@ -5,6 +5,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -23,7 +24,7 @@ import java.util.regex.Pattern;
  *     &#64;code
  *     // Using the default GPG key
  *     GpgRunner gpg = new GpgRunner();
- *     String signature = gpg.sign(
+ *     SignResult result = gpg.sign(
  *             Path.of("artifact.jar"),
  *             Path.of("artifact.jar.asc"));
  *
@@ -39,7 +40,7 @@ import java.util.regex.Pattern;
  *
  * @see #isAvailable()
  */
-public class GpgRunner {
+public class GpgRunner implements SignatureTool, KeyImporter, SignerIdentityResolver {
 
     private static final Pattern GPG_KEY_PATTERN = Pattern.compile(
             "using (\\w+) key\\s+([0-9A-Fa-f]{16,40})", Pattern.MULTILINE);
@@ -54,7 +55,12 @@ public class GpgRunner {
      *
      * @return true if GPG is available and responds to --version, false otherwise
      */
-    public static boolean isAvailable() {
+    /**
+     * Checks if the GPG executable is available and functional.
+     *
+     * @return true if GPG is available and responds to --version, false otherwise
+     */
+    public static boolean isToolAvailable() {
         try {
             CliTool.Result result = CliTool.run("gpg", "--version");
             return result.exitCode() == 0;
@@ -120,8 +126,11 @@ public class GpgRunner {
         return null;
     }
 
+    private static final Set<String> SUPPORTED_CREDENTIAL_TYPES = Set.of("openpgp-v4");
+
     private final String gpgExecutable;
     private final String keyName;
+    private final OpenPgpSignatureFormat format;
 
     /**
      * Constructs a GpgRunner using the default "gpg" executable and default key.
@@ -154,6 +163,7 @@ public class GpgRunner {
         }
         this.gpgExecutable = gpgExecutable;
         this.keyName = keyName;
+        this.format = new OpenPgpSignatureFormat();
     }
 
     /**
@@ -170,26 +180,19 @@ public class GpgRunner {
     }
 
     /**
-     * Creates a detached ASCII-armored signature for the specified artifact file.
+     * {@inheritDoc}
      * <p>
-     * This method invokes GPG with the following options:
-     * <ul>
-     * <li>--batch: Non-interactive mode</li>
-     * <li>--yes: Assume "yes" for prompts (e.g., overwrite existing signature)</li>
-     * <li>--armor: Create ASCII-armored output</li>
-     * <li>--detach-sign: Create a detached signature</li>
-     * <li>--local-user: Specify signing key (if keyName is set)</li>
-     * <li>--output: Specify output signature file path</li>
-     * </ul>
+     * Creates a detached ASCII-armored signature using GPG with options:
+     * {@code --batch --yes --armor --detach-sign [--local-user keyName] --output outputSig artifactFile}.
      *
      * @param artifactFile the file to sign
      * @param outputSig the path where the signature file will be written
-     * @return the ASCII-armored signature content as a String
+     * @return a {@link SignResult} with the algorithm used
      * @throws IllegalArgumentException if artifactFile or outputSig is null
-     * @throws RuntimeException if the GPG command fails
-     * @throws java.io.UncheckedIOException if reading the signature file fails
+     * @throws ToolExecutionException if the GPG command fails
      */
-    public String sign(Path artifactFile, Path outputSig) {
+    @Override
+    public SignResult sign(Path artifactFile, Path outputSig) {
         if (artifactFile == null) {
             throw new IllegalArgumentException("artifactFile cannot be null");
         }
@@ -200,16 +203,29 @@ public class GpgRunner {
         String[] command = buildSignCommand(artifactFile, outputSig);
         CliTool.Result result = CliTool.run(command);
         if (result.exitCode() != 0) {
-            throw new RuntimeException("'" + String.join(" ", command)
+            throw new ToolExecutionException("'" + String.join(" ", command)
                     + "' failed with exit code " + result.exitCode()
                     + (result.stderr().isEmpty() ? "" : ": " + result.stderr().trim()));
         }
 
+        return new SignResult("RSA");
+    }
+
+    /**
+     * Creates a detached ASCII-armored signature and returns the signature content.
+     *
+     * @param artifactFile the file to sign
+     * @param outputSig the path where the signature file will be written
+     * @return the ASCII-armored signature content as a String
+     * @throws ToolExecutionException if the GPG command fails
+     */
+    public String signAndRead(Path artifactFile, Path outputSig) {
+        sign(artifactFile, outputSig);
         return readSignatureFile(outputSig);
     }
 
     /**
-     * Verifies a detached signature for the specified artifact file.
+     * Verifies a detached signature file for the specified artifact.
      * <p>
      * This method runs {@code gpg --verify <signatureFile> <artifactFile>}
      * and interprets the result.
@@ -219,7 +235,7 @@ public class GpgRunner {
      * @return a {@link VerifyResult} with the verification outcome and extracted key ID
      * @throws IllegalArgumentException if artifactFile or signatureFile is null
      */
-    public VerifyResult verify(Path artifactFile, Path signatureFile) {
+    public VerifyResult verifyFile(Path artifactFile, Path signatureFile) {
         if (artifactFile == null) {
             throw new IllegalArgumentException("artifactFile cannot be null");
         }
@@ -293,6 +309,142 @@ public class GpgRunner {
             }
         }
         return null;
+    }
+
+    // --- SignatureTool SPI ---
+
+    @Override
+    public String name() {
+        return "gpg";
+    }
+
+    /**
+     * {@inheritDoc}
+     * <p>
+     * Checks availability by running {@code gpg --version}.
+     */
+    @Override
+    public boolean isAvailable() {
+        return GpgRunner.isToolAvailable();
+    }
+
+    /**
+     * {@inheritDoc}
+     * <p>
+     * Returns {@code true} if a key name was provided at construction time.
+     * A {@code null} key name means GPG's default key is used, which is still
+     * considered signing-capable.
+     */
+    @Override
+    public boolean canSign() {
+        return true;
+    }
+
+    @Override
+    public SignatureFormat signatureFormat() {
+        return format;
+    }
+
+    @Override
+    public Set<String> supportedCredentialTypes() {
+        return SUPPORTED_CREDENTIAL_TYPES;
+    }
+
+    /**
+     * {@inheritDoc}
+     * <p>
+     * Accepts {@link OpenPgpVerificationUnit}s with {@code packetVersion <= 4}.
+     */
+    @Override
+    public boolean canVerify(VerificationUnit unit) {
+        return unit instanceof OpenPgpVerificationUnit opgu
+                && opgu.packetVersion() > 0
+                && opgu.packetVersion() <= 4;
+    }
+
+    /**
+     * {@inheritDoc}
+     * <p>
+     * Writes the armored block to a temp file, verifies via GPG, and wraps
+     * the result into an {@link OpenPgpVerifyResult}.
+     */
+    @Override
+    public io.github.aloubyansky.sigmund.core.VerifyResult verify(Path artifactFile, VerificationUnit unit) {
+        if (!(unit instanceof OpenPgpVerificationUnit opgu)) {
+            return new OpenPgpVerifyResult(VerificationResult.SKIPPED, null, null, -1, null, null);
+        }
+        return verifyArmoredBlock(artifactFile, opgu);
+    }
+
+    @Override
+    public List<Credential> extractCredentials(io.github.aloubyansky.sigmund.core.VerifyResult result) {
+        if (result.result() != VerificationResult.PASS) {
+            return List.of();
+        }
+        if (result instanceof OpenPgpVerifyResult opvr && opvr.fingerprint() != null) {
+            String credType = opvr.version() < 6 ? "openpgp-v4" : "openpgp-v6";
+            return List.of(new FingerprintCredential(credType, opvr.fingerprint()));
+        }
+        return List.of();
+    }
+
+    // --- KeyImporter SPI ---
+
+    /**
+     * {@inheritDoc}
+     * <p>
+     * Delegates to {@link #receiveKey(String, String)}.
+     */
+    @Override
+    public boolean importKey(String keyId, String keyserver) {
+        return receiveKey(keyId, keyserver);
+    }
+
+    // --- SignerIdentityResolver SPI ---
+
+    /**
+     * {@inheritDoc}
+     * <p>
+     * Delegates to {@link #listKeyUserId(String)}.
+     */
+    @Override
+    public String lookupKeyUserId(String keyId) {
+        return listKeyUserId(keyId);
+    }
+
+    // --- Private helpers for SPI ---
+
+    private OpenPgpVerifyResult verifyArmoredBlock(Path artifactFile, OpenPgpVerificationUnit opgu) {
+        Path sigFile = null;
+        try {
+            sigFile = Files.createTempFile("gpg-verify-", ".asc");
+            Files.writeString(sigFile, opgu.armoredBlock());
+            VerifyResult gpgResult = verifyFile(artifactFile, sigFile);
+            return toOpenPgpVerifyResult(gpgResult, opgu.packetVersion());
+        } catch (IOException e) {
+            throw new ToolExecutionException("Failed to create temp file for GPG verification", e);
+        } finally {
+            deleteSilently(sigFile);
+        }
+    }
+
+    private OpenPgpVerifyResult toOpenPgpVerifyResult(VerifyResult gpgResult, int version) {
+        return new OpenPgpVerifyResult(
+                gpgResult.result(),
+                gpgResult.signerUserId(),
+                gpgResult.algorithm(),
+                version,
+                gpgResult.keyId(),
+                gpgResult.keyId());
+    }
+
+    private static void deleteSilently(Path file) {
+        if (file != null) {
+            try {
+                Files.deleteIfExists(file);
+            } catch (IOException ignored) {
+            }
+        }
     }
 
     private String[] buildSignCommand(Path artifactFile, Path outputSig) {

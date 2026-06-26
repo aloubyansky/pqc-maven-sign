@@ -233,25 +233,22 @@ public final class AscCombiner {
      *
      * @param algorithmId the IANA-registered algorithm ID
      * @return the algorithm name, or null if the ID is not recognized
+     * @deprecated Use {@link Algorithms#algorithmName(int)} instead.
      */
     static String algorithmName(int algorithmId) {
-        return ALGORITHM_NAMES.get(algorithmId);
+        return Algorithms.algorithmName(algorithmId);
     }
 
     /**
      * Checks whether an OpenPGP public-key algorithm ID designates a
      * post-quantum composite or standalone algorithm.
-     * <p>
-     * This check is based on the IANA OpenPGP Public Key Algorithms registry
-     * as of RFC 9980. The PQC algorithm IDs are 30-36 (ML-DSA, SLH-DSA,
-     * ML-KEM composites). This range may need updating as new PQC algorithms
-     * are registered with IANA.
      *
      * @param algorithmId the IANA-registered algorithm ID
      * @return true if the algorithm is PQC
+     * @deprecated Use {@link Algorithms#isPqcAlgorithm(int)} instead.
      */
     static boolean isPqcAlgorithm(int algorithmId) {
-        return algorithmId >= 30 && algorithmId <= 36;
+        return Algorithms.isPqcAlgorithm(algorithmId);
     }
 
     /**
@@ -259,17 +256,10 @@ public final class AscCombiner {
      *
      * @param algorithmName the algorithm name to check
      * @return true if the name matches a known PQC algorithm
+     * @deprecated Use {@link Algorithms#isPqcAlgorithmName(String)} instead.
      */
     static boolean isPqcAlgorithmName(String algorithmName) {
-        if (algorithmName == null) {
-            return false;
-        }
-        for (var entry : ALGORITHM_NAMES.entrySet()) {
-            if (isPqcAlgorithm(entry.getKey()) && algorithmName.equals(entry.getValue())) {
-                return true;
-            }
-        }
-        return false;
+        return Algorithms.isPqcAlgorithmName(algorithmName);
     }
 
     /**

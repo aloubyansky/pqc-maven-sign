@@ -69,7 +69,7 @@ public class VerifyArtifactMojo extends AbstractMojo {
     }
 
     private SqRunner createSqRunner() throws MojoExecutionException {
-        if (!SqRunner.isAvailable()) {
+        if (!SqRunner.isToolAvailable()) {
             getLog().warn("Sequoia (sq) not found - PQC verification will be skipped");
             return null;
         }

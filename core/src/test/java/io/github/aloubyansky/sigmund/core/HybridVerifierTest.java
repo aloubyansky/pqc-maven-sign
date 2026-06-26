@@ -238,8 +238,8 @@ class HybridVerifierTest {
         private GpgRunner mockGpg(VerificationResult result, String keyId) {
             return new GpgRunner() {
                 @Override
-                public VerifyResult verify(Path artifactFile, Path signatureFile) {
-                    return new VerifyResult(result, keyId, "RSA", "Test User <test@test.com>");
+                public GpgRunner.VerifyResult verifyFile(Path artifactFile, Path signatureFile) {
+                    return new GpgRunner.VerifyResult(result, keyId, "RSA", "Test User <test@test.com>");
                 }
             };
         }
@@ -382,7 +382,7 @@ class HybridVerifierTest {
 
             GpgRunner gpg = new GpgRunner() {
                 @Override
-                public VerifyResult verify(Path artifactFile, Path signatureFile) {
+                public GpgRunner.VerifyResult verifyFile(Path artifactFile, Path signatureFile) {
                     fail("GPG verify should not be called when no classic block present");
                     return null;
                 }
@@ -439,7 +439,7 @@ class HybridVerifierTest {
             AtomicBoolean gpgCalled = new AtomicBoolean(false);
             GpgRunner gpg = new GpgRunner() {
                 @Override
-                public VerifyResult verify(Path artifactFile, Path signatureFile) {
+                public GpgRunner.VerifyResult verifyFile(Path artifactFile, Path signatureFile) {
                     gpgCalled.set(true);
                     return new VerifyResult(VerificationResult.PASS, "KEY", "RSA", null);
                 }

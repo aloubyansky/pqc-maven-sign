@@ -66,7 +66,7 @@ public class SignatureBlockVerifier {
      * Verifies a classical GPG signature block using an already-written signature file.
      */
     public SignatureInfo verifyGpgBlock(Path artifactFile, Path sigFile, int version) {
-        GpgRunner.VerifyResult result = gpg.verify(artifactFile, sigFile);
+        GpgRunner.VerifyResult result = gpg.verifyFile(artifactFile, sigFile);
         return new SignatureInfo(
                 version,
                 result.keyId(),

@@ -124,10 +124,22 @@ public class SignCommand implements Callable<Integer> {
             Path artifactFile = resolveArtifactFile();
             Path outputFile = resolveOutputFile(artifactFile);
 
-            GpgRunner gpgSigner = createGpgRunner();
-            SqRunner sqRunner = createSqRunner();
-            HybridSigner signer = new HybridSigner(gpgSigner, sqRunner, pqcFingerprint);
-            signer.sign(artifactFile, outputFile);
+            GpgRunner gpg = createGpgRunner();
+            SqRunner sq = createSqRunner();
+            io.github.aloubyansky.sigmund.core.Sigmund sigmund = io.github.aloubyansky.sigmund.core.Sigmund.builder()
+                    .addTool(gpg)
+                    .addTool(sq)
+                    .build();
+            io.github.aloubyansky.sigmund.core.SigningOutput result = sigmund.signer()
+                    .sign(artifactFile, outputFile.getParent());
+
+            if (!result.files().isEmpty()) {
+                Path produced = result.files().get(0).path();
+                if (!produced.equals(outputFile)) {
+                    java.nio.file.Files.move(produced, outputFile,
+                            java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+                }
+            }
 
             printSuccessMessage(outputFile);
             return 0;
@@ -183,7 +195,7 @@ public class SignCommand implements Callable<Integer> {
      */
     private SqRunner createSqRunner() {
         Path sqHomeDir = sqHomeMixin.resolveSequoiaHome();
-        return new SqRunner(sqHomeDir);
+        return new SqRunner("sq", sqHomeDir, pqcFingerprint);
     }
 
     /**

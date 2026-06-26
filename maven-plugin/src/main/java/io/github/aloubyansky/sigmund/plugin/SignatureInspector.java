@@ -112,7 +112,7 @@ class SignatureInspector {
 
         SignatureInspector build() throws MojoExecutionException {
             if (gpg == null) {
-                if (!GpgRunner.isAvailable()) {
+                if (!GpgRunner.isToolAvailable()) {
                     throw new MojoExecutionException("GPG is not available on the system PATH");
                 }
                 gpg = new GpgRunner();
@@ -125,7 +125,7 @@ class SignatureInspector {
     }
 
     private static SqRunner createSqRunner(File sqHome, Log log) throws MojoExecutionException {
-        if (!SqRunner.isAvailable()) {
+        if (!SqRunner.isToolAvailable()) {
             if (log != null) {
                 log.debug("Sequoia (sq) not found - PQC signer info will not be available");
             }
@@ -242,7 +242,7 @@ class SignatureInspector {
         if (entry.artifactFile() == null || entry.signatureFile() == null) {
             return entry;
         }
-        GpgRunner.VerifyResult verified = gpg.verify(entry.artifactFile(), entry.signatureFile());
+        GpgRunner.VerifyResult verified = gpg.verifyFile(entry.artifactFile(), entry.signatureFile());
         return new SignedArtifact(entry.coordinates(), entry.repoId(),
                 new SignatureInfo(entry.signatureInfo().version(), verified.keyId(),
                         verified.algorithm(), verified.signerUserId(), verified.result()),

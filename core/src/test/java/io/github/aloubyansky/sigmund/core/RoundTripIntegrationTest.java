@@ -57,7 +57,7 @@ class RoundTripIntegrationTest {
      * @return true if both {@code gpg} and PQC-enabled {@code sq} are available
      */
     static boolean toolsAvailable() {
-        if (!GpgRunner.isAvailable() || !SqRunner.isAvailable()) {
+        if (!GpgRunner.isToolAvailable() || !SqRunner.isToolAvailable()) {
             return false;
         }
         // Check that sq actually supports PQC cipher suites

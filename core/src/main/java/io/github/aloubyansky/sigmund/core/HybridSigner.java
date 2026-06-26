@@ -77,7 +77,7 @@ public class HybridSigner {
             tempClassicSig = Files.createTempFile("classic-sig", ".asc");
             tempPqcSig = Files.createTempFile("pqc-sig", ".asc");
 
-            String classicAsc = gpg.sign(artifactFile, tempClassicSig);
+            String classicAsc = gpg.signAndRead(artifactFile, tempClassicSig);
             String pqcAsc = sq.sign(artifactFile, tempPqcSig, pqcFingerprint);
             String combinedAsc = AscCombiner.combine(classicAsc, pqcAsc);
 

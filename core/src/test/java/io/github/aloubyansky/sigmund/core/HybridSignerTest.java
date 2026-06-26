@@ -37,7 +37,7 @@ class HybridSignerTest {
 
         GpgRunner gpg = new GpgRunner() {
             @Override
-            public String sign(Path artifactFile, Path outputSig) {
+            public String signAndRead(Path artifactFile, Path outputSig) {
                 try {
                     Files.writeString(outputSig, fakeClassicAsc);
                 } catch (IOException e) {
