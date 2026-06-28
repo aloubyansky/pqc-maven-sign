@@ -21,12 +21,11 @@ import java.util.Map;
  * (GPG keyring, Sequoia cert store). Convenient for interactive use.</li>
  * </ul>
  * <p>
- * When {@link #keyservers()} is empty, each tool uses its own default resolution
- * (GPG delegates to dirmngr, Sequoia uses its configured certificate sources).
+ * When {@link #keyservers()} is empty, {@code hkps://keys.openpgp.org} is used as the default.
  *
  * @param fetchSignerInfo whether to attempt fetching missing signer info
  * @param importToKeyring whether to persist fetched keys into the tool's keyring
- * @param keyservers keyserver URLs for key discovery (empty = tool defaults)
+ * @param keyservers keyserver URLs for key discovery (empty = default)
  * @param tools per-tool verification settings, keyed by tool name
  */
 public record DiscoveryConfig(
@@ -39,13 +38,15 @@ public record DiscoveryConfig(
      * Default discovery configuration: fetch signer info enabled, ephemeral key fetching,
      * tool-default keyservers, no per-tool overrides.
      */
-    public static final DiscoveryConfig DEFAULT = new DiscoveryConfig(true, false, List.of(), Map.of());
+    public static final String DEFAULT_KEYSERVER = "hkps://keys.openpgp.org";
+
+    public static final DiscoveryConfig DEFAULT = new DiscoveryConfig(true, false, List.of(DEFAULT_KEYSERVER), Map.of());
 
     /**
      * Creates a new discovery configuration with defensive copies.
      */
     public DiscoveryConfig {
-        keyservers = keyservers != null ? List.copyOf(keyservers) : List.of();
+        keyservers = keyservers != null && !keyservers.isEmpty() ? List.copyOf(keyservers) : List.of(DEFAULT_KEYSERVER);
         tools = tools != null ? Map.copyOf(tools) : Map.of();
     }
 }

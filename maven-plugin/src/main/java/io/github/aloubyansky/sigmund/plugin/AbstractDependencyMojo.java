@@ -49,7 +49,7 @@ abstract class AbstractDependencyMojo extends AbstractMojo {
     @Parameter(property = "sigmund.fetchSignerInfo")
     protected Boolean fetchSignerInfo;
 
-    @Parameter(property = "sigmund.keyservers", defaultValue = "hkps://keyserver.ubuntu.com,hkps://keys.openpgp.org")
+    @Parameter(property = "sigmund.keyservers")
     protected String keyservers;
 
     @Parameter(property = "sigmund.sqHome")
@@ -153,10 +153,9 @@ abstract class AbstractDependencyMojo extends AbstractMojo {
         boolean effectiveFetch = fetchSignerInfo != null
                 ? fetchSignerInfo
                 : fileSettings.fetchSignerInfo();
-        List<String> effectiveKeyservers = fileSettings.keyservers();
-        if (effectiveFetch && effectiveKeyservers.isEmpty()) {
-            effectiveKeyservers = SignatureInspector.parseKeyservers(keyservers);
-        }
+        List<String> effectiveKeyservers = keyservers != null
+                ? SignatureInspector.parseKeyservers(keyservers)
+                : fileSettings.keyservers();
         return new TrustConfig.Settings(
                 effectiveKeyservers, fileSettings.onUntrusted(),
                 fileSettings.verifyAllSignatures(), effectiveFetch);

@@ -145,12 +145,7 @@ public class SignatureEvidenceAdapter implements EvidenceProvider {
             return false;
         }
 
-        List<String> keyservers = discoveryConfig.keyservers();
-        if (keyservers.isEmpty()) {
-            return importer.importKey(keyId, "hkps://keys.openpgp.org");
-        }
-
-        for (String keyserver : keyservers) {
+        for (String keyserver : discoveryConfig.keyservers()) {
             if (importer.importKey(keyId, keyserver)) {
                 return true;
             }
