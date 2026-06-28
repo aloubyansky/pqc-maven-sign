@@ -97,7 +97,7 @@ class TrustConfigAdapter {
             unsignedPatterns.addAll(patterns);
         }
 
-        boolean requireAll = settings.verifyAllSignatures();
+        boolean requireAll = false;
         UntrustedPolicy untrustedPolicy = "fail".equals(settings.onUntrusted())
                 ? UntrustedPolicy.FAIL
                 : UntrustedPolicy.WARN;

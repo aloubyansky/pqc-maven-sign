@@ -21,25 +21,19 @@ import org.apache.maven.plugin.MojoExecutionException;
 import org.apache.maven.plugin.logging.Log;
 import org.eclipse.aether.RepositorySystem;
 import org.eclipse.aether.RepositorySystemSession;
-import org.eclipse.aether.artifact.DefaultArtifact;
-import org.eclipse.aether.repository.ArtifactRepository;
 import org.eclipse.aether.repository.RemoteRepository;
-import org.eclipse.aether.resolution.ArtifactRequest;
-import org.eclipse.aether.resolution.ArtifactResolutionException;
-import org.eclipse.aether.resolution.ArtifactResult;
 
 /**
  * Inspects OpenPGP signatures for Maven artifacts, extracting signer metadata
  * from both classical (v4/GPG) and PQC (v6) signature blocks.
  * <p>
- * Uses the {@link Sigmund} facade for signature verification.
+ * Uses the {@link Sigmund} facade for signature verification and
+ * {@link ArtifactFileResolver} for Maven artifact resolution.
  */
 class SignatureInspector {
 
     private final Log log;
-    private final RepositorySystem repoSystem;
-    private final RepositorySystemSession repoSession;
-    private final List<RemoteRepository> remoteRepos;
+    private final ArtifactFileResolver fileResolver;
     private final Sigmund sigmund;
     private final KeyImporter keyImporter;
     private final List<String> keyServers;
@@ -47,9 +41,8 @@ class SignatureInspector {
 
     private SignatureInspector(Builder builder) {
         this.log = builder.log;
-        this.repoSystem = builder.repoSystem;
-        this.repoSession = builder.repoSession;
-        this.remoteRepos = builder.remoteRepos;
+        this.fileResolver = new ArtifactFileResolver(
+                builder.repoSystem, builder.repoSession, builder.remoteRepos, builder.log);
         this.sigmund = builder.sigmund;
         this.keyImporter = sigmund.findTool(KeyImporter.class);
         this.keyServers = List.copyOf(builder.keyServers);
@@ -137,27 +130,26 @@ class SignatureInspector {
     List<SignedArtifact> inspectSignatures(ArtifactCoords coords) {
         String coordsStr = coords.toString();
 
-        ResolvedArtifact resolved = resolveArtifact(coords);
+        ArtifactFileResolver.ResolvedArtifact resolved = fileResolver.resolveArtifact(coords);
         if (resolved == null) {
             return List.of(new SignedArtifact(coordsStr, null,
                     new SignatureInfo(-1, null, null, null, VerificationResult.SKIPPED)));
         }
 
-        List<RemoteRepository> sigRepos = resolved.sourceRepo != null
-                ? List.of(resolved.sourceRepo)
-                : remoteRepos;
-        ArtifactResult sigResult = resolveSignature(coords, sigRepos);
+        List<RemoteRepository> sigRepos = fileResolver.signatureRepos(resolved.sourceRepo());
+        ArtifactFileResolver.ResolvedSignature sigResult = fileResolver.resolveSignature(
+                coords, ".asc", sigRepos);
         if (sigResult == null) {
             return List.of(new SignedArtifact(coordsStr, null,
                     new SignatureInfo(-1, null, null, null, VerificationResult.SKIPPED)));
         }
 
-        String repoId = resolveRepoId(sigResult);
-        Path ascFile = sigResult.getArtifact().getFile().toPath();
+        String repoId = sigResult.repoId();
+        Path ascFile = sigResult.signatureFile();
 
         SignatureVerificationReport report;
         try {
-            report = sigmund.verify(resolved.artifactFile, ascFile);
+            report = sigmund.verify(resolved.artifactFile(), ascFile);
         } catch (Exception e) {
             log.warn("Verification failed for " + coordsStr + ": " + e.getMessage());
             return List.of(new SignedArtifact(coordsStr, repoId,
@@ -179,7 +171,7 @@ class SignatureInspector {
             for (VerifyResult vr : fileReport.results()) {
                 SignatureInfo sig = toSignatureInfo(vr);
                 SignedArtifact entry = new SignedArtifact(coordsStr, repoId, sig,
-                        resolved.artifactFile, ascFile);
+                        resolved.artifactFile(), ascFile);
                 SignedArtifact fetched;
                 try {
                     fetched = fetchSignerInfoIfMissing(entry);
@@ -250,72 +242,6 @@ class SignatureInspector {
         return entry;
     }
 
-    private ResolvedArtifact resolveArtifact(ArtifactCoords coords) {
-        try {
-            org.eclipse.aether.artifact.Artifact aetherArtifact = new DefaultArtifact(
-                    coords.groupId(), coords.artifactId(),
-                    coords.classifier(), coords.type(), coords.version());
-            ArtifactRequest request = new ArtifactRequest(aetherArtifact, remoteRepos, null);
-            ArtifactResult result = repoSystem.resolveArtifact(repoSession, request);
-            Path file = result.getArtifact().getFile().toPath();
-            RemoteRepository sourceRepo = extractSourceRepo(result);
-            return new ResolvedArtifact(file, sourceRepo);
-        } catch (ArtifactResolutionException e) {
-            log.debug("Could not resolve " + coords);
-            return null;
-        }
-    }
-
-    private RemoteRepository extractSourceRepo(ArtifactResult result) {
-        if (result.getLocalArtifactResult() != null
-                && result.getLocalArtifactResult().getRepository() != null) {
-            return findMatchingRepo(result.getLocalArtifactResult().getRepository().getId());
-        }
-        ArtifactRepository repo = result.getRepository();
-        if (repo instanceof RemoteRepository) {
-            return (RemoteRepository) repo;
-        }
-        if (repo != null) {
-            return findMatchingRepo(repo.getId());
-        }
-        return null;
-    }
-
-    private ArtifactResult resolveSignature(ArtifactCoords coords, List<RemoteRepository> repos) {
-        try {
-            org.eclipse.aether.artifact.Artifact aetherArtifact = new DefaultArtifact(
-                    coords.groupId(), coords.artifactId(),
-                    coords.classifier(), coords.type() + ".asc",
-                    coords.version());
-            ArtifactRequest request = new ArtifactRequest(aetherArtifact, repos, null);
-            return repoSystem.resolveArtifact(repoSession, request);
-        } catch (ArtifactResolutionException e) {
-            log.debug("No .asc signature found for " + coords);
-            return null;
-        }
-    }
-
-    private RemoteRepository findMatchingRepo(String repoId) {
-        if (repoId == null) {
-            return null;
-        }
-        for (RemoteRepository repo : remoteRepos) {
-            if (repoId.equals(repo.getId())) {
-                return repo;
-            }
-        }
-        return null;
-    }
-
-    private String resolveRepoId(ArtifactResult result) {
-        if (result.getLocalArtifactResult() != null
-                && result.getLocalArtifactResult().getRepository() != null) {
-            return result.getLocalArtifactResult().getRepository().getId();
-        }
-        ArtifactRepository repo = result.getRepository();
-        return repo != null ? repo.getId() : null;
-    }
-
     static List<String> parseKeyservers(String keyservers) {
         List<String> servers = new ArrayList<>();
         for (String s : keyservers.split(",")) {
@@ -325,9 +251,6 @@ class SignatureInspector {
             }
         }
         return servers;
-    }
-
-    record ResolvedArtifact(Path artifactFile, RemoteRepository sourceRepo) {
     }
 
     record SignedArtifact(String coordinates, String repoId, SignatureInfo signatureInfo,
