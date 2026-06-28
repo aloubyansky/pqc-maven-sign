@@ -33,7 +33,7 @@ class EmailCredentialTest {
     @Test
     void crossType_noMatch() {
         var email = new EmailCredential("alice@example.com");
-        var fp = new FingerprintCredential("openpgp-v4", "4AEE18F83AFDEB23");
+        var fp = new FingerprintCredential("openpgp4", "4AEE18F83AFDEB23");
         assertFalse(email.matches(fp));
     }
 

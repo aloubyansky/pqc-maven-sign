@@ -15,7 +15,7 @@ import java.util.List;
  * <h3>Examples</h3>
  * <ul>
  * <li>A verified OpenPGP v4 signature produces {@code provenCredentials} containing
- * a {@code FingerprintCredential("openpgp-v4", "AB01CD23...")}.</li>
+ * a {@code FingerprintCredential("openpgp4", "AB01CD23...")}.</li>
  * <li>A verified Sigstore bundle produces an {@code EmailCredential("alice@example.com")}.</li>
  * </ul>
  *

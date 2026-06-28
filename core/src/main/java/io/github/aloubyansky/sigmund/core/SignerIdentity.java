@@ -15,8 +15,8 @@ import java.util.List;
  *
  * <pre>{@code
  * var alice = new SignerIdentity("alice", "Alice", List.of(
- *         new FingerprintCredential("openpgp-v4", "4AEE18F83AFDEB23"),
- *         new FingerprintCredential("openpgp-v6", "ABCD1234..."),
+ *         new FingerprintCredential("openpgp4", "4AEE18F83AFDEB23"),
+ *         new FingerprintCredential("openpgp6", "ABCD1234..."),
  *         new EmailCredential("alice@example.com")));
  * }</pre>
  *

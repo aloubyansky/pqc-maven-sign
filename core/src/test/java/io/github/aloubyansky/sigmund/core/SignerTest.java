@@ -176,7 +176,7 @@ class SignerTest {
 
             @Override
             public Set<String> supportedCredentialTypes() {
-                return Set.of("openpgp-v4");
+                return Set.of("openpgp4");
             }
 
             @Override

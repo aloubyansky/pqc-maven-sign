@@ -42,16 +42,16 @@ class SigmundConfigParserTest {
                       alice:
                         name: "Alice"
                         email: "alice@example.com"
-                        openpgp-v4: "4AEE18F83AFDEB23"
-                        openpgp-v6: "ABCD1234ABCD1234"
+                        openpgp4: "4AEE18F83AFDEB23"
+                        openpgp6: "ABCD1234ABCD1234"
                     """);
             var alice = config.signers().get("alice");
             assertEquals("Alice", alice.displayName());
             assertEquals(3, alice.credentials().size());
 
             var types = alice.credentials().stream().map(Credential::type).toList();
-            assertTrue(types.contains("openpgp-v4"));
-            assertTrue(types.contains("openpgp-v6"));
+            assertTrue(types.contains("openpgp4"));
+            assertTrue(types.contains("openpgp6"));
             assertTrue(types.contains("email"));
         }
 
@@ -74,27 +74,27 @@ class SigmundConfigParserTest {
         }
 
         @Test
-        void backwardCompat_gpgAlias() {
+        void pgp4Alias() {
             var config = parse("""
                     signers:
                       alice:
-                        gpg: "4AEE18F83AFDEB23"
+                        pgp4: "4AEE18F83AFDEB23"
                     """);
             var alice = config.signers().get("alice");
             var fp = assertInstanceOf(FingerprintCredential.class, alice.credentials().get(0));
-            assertEquals("openpgp-v4", fp.type());
+            assertEquals("openpgp4", fp.type());
         }
 
         @Test
-        void backwardCompat_pqcAlias() {
+        void pgp6Alias() {
             var config = parse("""
                     signers:
                       alice:
-                        pqc: "ABCD1234ABCD1234"
+                        pgp6: "ABCD1234ABCD1234"
                     """);
             var fp = assertInstanceOf(FingerprintCredential.class,
                     config.signers().get("alice").credentials().get(0));
-            assertEquals("openpgp-v6", fp.type());
+            assertEquals("openpgp6", fp.type());
         }
 
         @Test
@@ -120,7 +120,7 @@ class SigmundConfigParserTest {
             var config = parse("""
                     signers:
                       alice:
-                        openpgp-v4: "4AEE18F83AFDEB23"
+                        openpgp4: "4AEE18F83AFDEB23"
                     trust:
                       "org.example:*": [alice]
                     """);
@@ -204,7 +204,7 @@ class SigmundConfigParserTest {
                       signer: alice
                       default-profile: hybrid
                       profiles:
-                        hybrid: [openpgp-v4, openpgp-v6]
+                        hybrid: [openpgp4, openpgp6]
                       tools:
                         sq:
                           cipher-suite: "mldsa87-ed448"
@@ -212,7 +212,7 @@ class SigmundConfigParserTest {
             var signing = config.signingConfig();
             assertEquals("alice", signing.signer());
             assertEquals("hybrid", signing.defaultProfile());
-            assertEquals(List.of("openpgp-v4", "openpgp-v6"), signing.profiles().get("hybrid"));
+            assertEquals(List.of("openpgp4", "openpgp6"), signing.profiles().get("hybrid"));
             assertEquals("mldsa87-ed448", signing.tools().get("sq").settings().get("cipher-suite"));
         }
 
@@ -263,8 +263,8 @@ class SigmundConfigParserTest {
                       alice:
                         name: "Alice"
                         email: "alice@example.com"
-                        openpgp-v4: "4AEE18F83AFDEB23"
-                        openpgp-v6: "ABCD1234ABCD1234"
+                        openpgp4: "4AEE18F83AFDEB23"
+                        openpgp6: "ABCD1234ABCD1234"
                       bob: "Bob <bob@example.com>"
                     signing:
                       signer: alice

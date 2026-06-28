@@ -20,7 +20,7 @@ package io.github.aloubyansky.sigmund.core;
  *
  * <h3>Built-in credential types</h3>
  * <ul>
- * <li>{@code "openpgp-v4"}, {@code "openpgp-v6"} — {@link FingerprintCredential},
+ * <li>{@code "openpgp4"}, {@code "openpgp6"} — {@link FingerprintCredential},
  * named by key version (not tool or algorithm)</li>
  * <li>{@code "email"} — {@link EmailCredential}</li>
  * <li>{@code "oidc"} — {@link OidcCredential} (issuer + subject)</li>
@@ -33,15 +33,15 @@ package io.github.aloubyansky.sigmund.core;
  */
 public interface Credential {
 
-    String TYPE_OPENPGP_V4 = "openpgp-v4";
-    String TYPE_OPENPGP_V6 = "openpgp-v6";
+    String TYPE_OPENPGP_V4 = "openpgp4";
+    String TYPE_OPENPGP_V6 = "openpgp6";
     String TYPE_EMAIL = "email";
     String TYPE_OIDC = "oidc";
 
     /**
      * Returns the credential type identifier.
      * <p>
-     * Built-in types include {@code "openpgp-v4"}, {@code "openpgp-v6"}, {@code "email"},
+     * Built-in types include {@code "openpgp4"}, {@code "openpgp6"}, {@code "email"},
      * and {@code "oidc"}. Custom types can be introduced for new signing backends.
      *
      * @return the type string, never {@code null}

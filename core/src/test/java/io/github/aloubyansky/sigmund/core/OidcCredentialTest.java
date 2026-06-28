@@ -40,7 +40,7 @@ class OidcCredentialTest {
     @Test
     void crossType_fingerprint_noMatch() {
         var oidc = new OidcCredential("https://issuer.example.com", "subject");
-        var fp = new FingerprintCredential("openpgp-v4", "4AEE18F83AFDEB23");
+        var fp = new FingerprintCredential("openpgp4", "4AEE18F83AFDEB23");
         assertFalse(oidc.matches(fp));
     }
 

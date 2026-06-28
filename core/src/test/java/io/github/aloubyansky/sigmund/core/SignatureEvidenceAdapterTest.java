@@ -21,7 +21,7 @@ class SignatureEvidenceAdapterTest {
         @Test
         void singleUnitVerifiedAndCredentialsExtracted() {
             var tool = mockTool("gpg", true, true, passVerifyResult(),
-                    List.of(new FingerprintCredential("openpgp-v4", FP)));
+                    List.of(new FingerprintCredential("openpgp4", FP)));
             var adapter = adapterWith(singleUnitFormat(), List.of(tool), DiscoveryConfig.DEFAULT);
 
             List<EvidenceResult> results = adapter.verify(ARTIFACT, EVIDENCE);
@@ -29,7 +29,7 @@ class SignatureEvidenceAdapterTest {
             assertEquals(1, results.size());
             assertEquals(VerificationResult.PASS, results.get(0).result());
             assertEquals(1, results.get(0).provenCredentials().size());
-            assertEquals("openpgp-v4", results.get(0).provenCredentials().get(0).type());
+            assertEquals("openpgp4", results.get(0).provenCredentials().get(0).type());
             assertEquals("openpgp", results.get(0).provider());
         }
 
@@ -50,16 +50,16 @@ class SignatureEvidenceAdapterTest {
             var format = mockFormat("openpgp", ".asc", true,
                     List.of(V4_UNIT, new OpenPgpVerificationUnit("armored2", 6, "FP2", 1)));
             var v4Tool = mockToolForVersion("gpg", 4, passVerifyResult(),
-                    List.of(new FingerprintCredential("openpgp-v4", FP)));
+                    List.of(new FingerprintCredential("openpgp4", FP)));
             var v6Tool = mockToolForVersion("sq", 6, passVerifyResult(),
-                    List.of(new FingerprintCredential("openpgp-v6", "FP2")));
+                    List.of(new FingerprintCredential("openpgp6", "FP2")));
             var adapter = adapterWith(format, List.of(v4Tool, v6Tool), DiscoveryConfig.DEFAULT);
 
             List<EvidenceResult> results = adapter.verify(ARTIFACT, EVIDENCE);
 
             assertEquals(2, results.size());
-            assertEquals("openpgp-v4", results.get(0).provenCredentials().get(0).type());
-            assertEquals("openpgp-v6", results.get(1).provenCredentials().get(0).type());
+            assertEquals("openpgp4", results.get(0).provenCredentials().get(0).type());
+            assertEquals("openpgp6", results.get(1).provenCredentials().get(0).type());
         }
     }
 
@@ -212,7 +212,7 @@ class SignatureEvidenceAdapterTest {
 
             @Override
             public Set<String> supportedCredentialTypes() {
-                return Set.of("openpgp-v4");
+                return Set.of("openpgp4");
             }
 
             @Override
@@ -262,7 +262,7 @@ class SignatureEvidenceAdapterTest {
 
             @Override
             public Set<String> supportedCredentialTypes() {
-                return Set.of("openpgp-v6");
+                return Set.of("openpgp6");
             }
 
             @Override
@@ -323,7 +323,7 @@ class SignatureEvidenceAdapterTest {
 
         @Override
         public Set<String> supportedCredentialTypes() {
-            return Set.of("openpgp-v4");
+            return Set.of("openpgp4");
         }
 
         @Override
@@ -347,7 +347,7 @@ class SignatureEvidenceAdapterTest {
         @Override
         public List<Credential> extractCredentials(VerifyResult r) {
             if (r.result() == VerificationResult.PASS) {
-                return List.of(new FingerprintCredential("openpgp-v4", FP));
+                return List.of(new FingerprintCredential("openpgp4", FP));
             }
             return List.of();
         }

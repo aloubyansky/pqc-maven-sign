@@ -3,7 +3,7 @@ package io.github.aloubyansky.sigmund.core;
 /**
  * An OpenPGP fingerprint credential, typed by key version.
  * <p>
- * The credential type is named after the key version ({@code "openpgp-v4"}, {@code "openpgp-v6"}),
+ * The credential type is named after the key version ({@code "openpgp4"}, {@code "openpgp6"}),
  * not the algorithm family or the tool. This reflects the LibrePGP / RFC 9580 split in the
  * OpenPGP ecosystem: GnuPG follows LibrePGP and handles v4 keys, while Sequoia follows
  * RFC 9580 and handles v6 keys. The algorithm (e.g., RSA vs ML-DSA-87+Ed448) is a property
@@ -15,10 +15,10 @@ package io.github.aloubyansky.sigmund.core;
  * the shorter fingerprint must be a suffix of the longer one, and both must be at least
  * {@value #MIN_FINGERPRINT_LENGTH} hex characters. This accommodates the common case where
  * a configuration specifies a short key ID (16 hex chars) while the signature contains the
- * full fingerprint (40 or 64 hex chars). Two fingerprints of different types (e.g., {@code "openpgp-v4"}
- * vs {@code "openpgp-v6"}) never match.
+ * full fingerprint (40 or 64 hex chars). Two fingerprints of different types (e.g., {@code "openpgp4"}
+ * vs {@code "openpgp6"}) never match.
  *
- * @param type the credential type, typically {@code "openpgp-v4"} or {@code "openpgp-v6"}
+ * @param type the credential type, typically {@code "openpgp4"} or {@code "openpgp6"}
  * @param fingerprint the key fingerprint as a hex string
  */
 public record FingerprintCredential(String type, String fingerprint) implements Credential {

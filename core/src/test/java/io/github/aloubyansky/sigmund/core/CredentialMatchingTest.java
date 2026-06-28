@@ -16,10 +16,10 @@ class CredentialMatchingTest {
     @Test
     void fingerprintMatch_v4() {
         var signer = new SignerIdentity("alice", "Alice", List.of(
-                new FingerprintCredential("openpgp-v4", "4AEE18F83AFDEB23")));
+                new FingerprintCredential("openpgp4", "4AEE18F83AFDEB23")));
 
         var evidence = new EvidenceResult(VerificationResult.PASS, List.of(
-                new FingerprintCredential("openpgp-v4",
+                new FingerprintCredential("openpgp4",
                         "AB01CD23EF45678901234AEE18F83AFDEB23")),
                 "openpgp");
 
@@ -71,7 +71,7 @@ class CredentialMatchingTest {
     @Test
     void noOverlap_differentCredentialTypes() {
         var signer = new SignerIdentity("alice", "Alice", List.of(
-                new FingerprintCredential("openpgp-v4", "4AEE18F83AFDEB23")));
+                new FingerprintCredential("openpgp4", "4AEE18F83AFDEB23")));
 
         var evidence = new EvidenceResult(VerificationResult.PASS, List.of(
                 new EmailCredential("alice@example.com")),
@@ -83,12 +83,12 @@ class CredentialMatchingTest {
     @Test
     void multipleCredentials_oneMatches() {
         var signer = new SignerIdentity("alice", "Alice", List.of(
-                new FingerprintCredential("openpgp-v4", "4AEE18F83AFDEB23"),
-                new FingerprintCredential("openpgp-v6", "ABCD1234ABCD1234"),
+                new FingerprintCredential("openpgp4", "4AEE18F83AFDEB23"),
+                new FingerprintCredential("openpgp6", "ABCD1234ABCD1234"),
                 new EmailCredential("alice@example.com")));
 
         var evidence = new EvidenceResult(VerificationResult.PASS, List.of(
-                new FingerprintCredential("openpgp-v6", "ABCD1234ABCD1234")),
+                new FingerprintCredential("openpgp6", "ABCD1234ABCD1234")),
                 "openpgp");
 
         assertTrue(matchesAny(signer, evidence));

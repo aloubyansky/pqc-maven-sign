@@ -21,8 +21,8 @@ import java.util.regex.Pattern;
  * <p>
  * Maps YAML signer keys to {@link Credential} types:
  * <ul>
- * <li>{@code openpgp-v4} / {@code gpg} → {@link FingerprintCredential}("openpgp-v4", ...)</li>
- * <li>{@code openpgp-v6} / {@code pqc} → {@link FingerprintCredential}("openpgp-v6", ...)</li>
+ * <li>{@code openpgp4} / {@code pgp4} → {@link FingerprintCredential}("openpgp4", ...)</li>
+ * <li>{@code openpgp6} / {@code pgp6} → {@link FingerprintCredential}("openpgp6", ...)</li>
  * <li>{@code email} → {@link EmailCredential}</li>
  * <li>{@code oidc} → {@link OidcCredential}(issuer, subject)</li>
  * <li>{@code uid} → parsed into displayName + {@link EmailCredential} (backward compat shorthand)</li>
@@ -126,9 +126,9 @@ class SigmundConfigParser {
         List<Credential> credentials = new ArrayList<>();
 
         addFingerprintCredential(credentials, node, Credential.TYPE_OPENPGP_V4, Credential.TYPE_OPENPGP_V4);
-        addFingerprintCredential(credentials, node, "gpg", Credential.TYPE_OPENPGP_V4);
+        addFingerprintCredential(credentials, node, "pgp4", Credential.TYPE_OPENPGP_V4);
         addFingerprintCredential(credentials, node, Credential.TYPE_OPENPGP_V6, Credential.TYPE_OPENPGP_V6);
-        addFingerprintCredential(credentials, node, "pqc", Credential.TYPE_OPENPGP_V6);
+        addFingerprintCredential(credentials, node, "pgp6", Credential.TYPE_OPENPGP_V6);
         addEmailCredential(credentials, node);
         addOidcCredential(credentials, node);
         addUidCredentials(credentials, node, displayName);

@@ -79,7 +79,7 @@ public interface SignatureTool {
      * {@link #canVerify(VerificationUnit)} handles that based on unit content.
      *
      * @return the supported credential type strings
-     *         (e.g., {@code ["openpgp-v4"]}, {@code ["openpgp-v4", "openpgp-v6"]})
+     *         (e.g., {@code ["openpgp4"]}, {@code ["openpgp4", "openpgp6"]})
      */
     Set<String> supportedCredentialTypes();
 
@@ -127,8 +127,8 @@ public interface SignatureTool {
      * <p>
      * The tool knows what credentials its results prove. For OpenPGP tools, this maps
      * the verified packet version to the credential type:
-     * {@code version < 6} → {@code FingerprintCredential("openpgp-v4", ...)},
-     * {@code version >= 6} → {@code FingerprintCredential("openpgp-v6", ...)}.
+     * {@code version < 6} → {@code FingerprintCredential("openpgp4", ...)},
+     * {@code version >= 6} → {@code FingerprintCredential("openpgp6", ...)}.
      * <p>
      * Returns an empty list if the result is not {@link VerificationResult#PASS}.
      *

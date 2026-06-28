@@ -10,7 +10,7 @@ import org.junit.jupiter.api.Test;
 class TrustVerifierTest {
 
     private static final SignerIdentity ALICE = new SignerIdentity("alice", "Alice",
-            List.of(new FingerprintCredential("openpgp-v4", "4AEE18F83AFDEB23")));
+            List.of(new FingerprintCredential("openpgp4", "4AEE18F83AFDEB23")));
 
     @Nested
     class VerdictAssignment {
@@ -19,7 +19,7 @@ class TrustVerifierTest {
         void trusted_whenEvidenceMatchesExpectedSigner() {
             var policy = policyFor(ALICE, false);
             var provider = passingProvider("openpgp",
-                    new FingerprintCredential("openpgp-v4", "4AEE18F83AFDEB23"));
+                    new FingerprintCredential("openpgp4", "4AEE18F83AFDEB23"));
             var verifier = new TrustVerifier(policy, List.of(provider));
 
             var result = verifier.assess(
@@ -35,7 +35,7 @@ class TrustVerifierTest {
         void untrusted_whenEvidenceDoesNotMatch() {
             var policy = policyFor(ALICE, false);
             var provider = passingProvider("openpgp",
-                    new FingerprintCredential("openpgp-v4", "DIFFERENT18F83AFD"));
+                    new FingerprintCredential("openpgp4", "DIFFERENT18F83AFD"));
             var verifier = new TrustVerifier(policy, List.of(provider));
 
             var result = verifier.assess(
@@ -96,10 +96,10 @@ class TrustVerifierTest {
             var policy = policyFor(alice, true);
             var provider = multiResultProvider(
                     new EvidenceResult(VerificationResult.PASS,
-                            List.of(new FingerprintCredential("openpgp-v4", "4AEE18F83AFDEB23")),
+                            List.of(new FingerprintCredential("openpgp4", "4AEE18F83AFDEB23")),
                             "openpgp"),
                     new EvidenceResult(VerificationResult.PASS,
-                            List.of(new FingerprintCredential("openpgp-v6", "UNKNOWNFINGERPRINT")),
+                            List.of(new FingerprintCredential("openpgp6", "UNKNOWNFINGERPRINT")),
                             "openpgp"));
             var verifier = new TrustVerifier(policy, List.of(provider));
 
@@ -116,10 +116,10 @@ class TrustVerifierTest {
             var policy = policyFor(ALICE, false);
             var provider = multiResultProvider(
                     new EvidenceResult(VerificationResult.PASS,
-                            List.of(new FingerprintCredential("openpgp-v4", "4AEE18F83AFDEB23")),
+                            List.of(new FingerprintCredential("openpgp4", "4AEE18F83AFDEB23")),
                             "openpgp"),
                     new EvidenceResult(VerificationResult.PASS,
-                            List.of(new FingerprintCredential("openpgp-v6", "UNKNOWNFINGERPRINT")),
+                            List.of(new FingerprintCredential("openpgp6", "UNKNOWNFINGERPRINT")),
                             "openpgp"));
             var verifier = new TrustVerifier(policy, List.of(provider));
 

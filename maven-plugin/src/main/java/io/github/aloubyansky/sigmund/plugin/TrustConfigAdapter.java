@@ -49,10 +49,10 @@ class TrustConfigAdapter {
         List<Credential> credentials = new ArrayList<>();
         for (TrustConfig.Member member : signer.members()) {
             if (member.gpg() != null) {
-                credentials.add(new FingerprintCredential("openpgp-v4", member.gpg()));
+                credentials.add(new FingerprintCredential(Credential.TYPE_OPENPGP_V4, member.gpg()));
             }
             if (member.pqc() != null) {
-                credentials.add(new FingerprintCredential("openpgp-v6", member.pqc()));
+                credentials.add(new FingerprintCredential(Credential.TYPE_OPENPGP_V6, member.pqc()));
             }
             if (member.uid() != null) {
                 String email = GpgRunner.extractEmail(member.uid());
