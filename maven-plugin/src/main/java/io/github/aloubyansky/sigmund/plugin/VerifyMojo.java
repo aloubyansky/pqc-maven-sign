@@ -282,7 +282,8 @@ public class VerifyMojo extends AbstractDependencyMojo {
                         continue;
                     }
                     for (SignerIdentity trusted : allTrustedSigners) {
-                        if (trusted.displayName().equals(info.signerDisplayName())) {
+                        if (trusted.displayName() != null
+                                && trusted.displayName().equals(info.signerDisplayName())) {
                             return true;
                         }
                     }

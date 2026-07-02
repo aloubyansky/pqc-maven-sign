@@ -4,7 +4,6 @@ import io.github.aloubyansky.sigmund.core.Credential;
 import io.github.aloubyansky.sigmund.core.DefaultTrustPolicy;
 import io.github.aloubyansky.sigmund.core.EmailCredential;
 import io.github.aloubyansky.sigmund.core.FingerprintCredential;
-import io.github.aloubyansky.sigmund.core.GpgRunner;
 import io.github.aloubyansky.sigmund.core.SignerIdentity;
 import io.github.aloubyansky.sigmund.core.TrustPolicy;
 import io.github.aloubyansky.sigmund.core.UntrustedPolicy;
@@ -54,11 +53,8 @@ class TrustConfigAdapter {
             if (member.pqc() != null) {
                 credentials.add(new FingerprintCredential(Credential.TYPE_OPENPGP_V6, member.pqc()));
             }
-            if (member.uid() != null) {
-                String email = GpgRunner.extractEmail(member.uid());
-                if (email != null) {
-                    credentials.add(new EmailCredential(email));
-                }
+            if (member.email() != null) {
+                credentials.add(new EmailCredential(member.email()));
             }
         }
         String displayName = signer.name() != null ? signer.name() : ref;

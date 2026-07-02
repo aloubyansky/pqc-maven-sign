@@ -375,6 +375,10 @@ public class GpgRunner implements SignatureTool, KeyImporter, SignerIdentityReso
         if (lt >= 0 && gt > lt + 1) {
             return uid.substring(lt + 1, gt).trim();
         }
+        String trimmed = uid.trim();
+        if (trimmed.contains("@") && !trimmed.contains(" ")) {
+            return trimmed;
+        }
         return null;
     }
 

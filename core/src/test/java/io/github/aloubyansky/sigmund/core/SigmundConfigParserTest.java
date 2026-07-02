@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -22,14 +23,14 @@ class SigmundConfigParserTest {
     class SignerParsing {
 
         @Test
-        void minimalSigner_uidString() {
+        void minimalSigner_emailString() {
             var config = parse("""
                     signers:
-                      bob: "Bob <bob@example.com>"
+                      bob: "bob@example.com"
                     """);
             var bob = config.signers().get("bob");
             assertNotNull(bob);
-            assertEquals("Bob", bob.displayName());
+            assertNull(bob.displayName());
             assertEquals(1, bob.credentials().size());
             assertInstanceOf(EmailCredential.class, bob.credentials().get(0));
             assertEquals("bob@example.com", ((EmailCredential) bob.credentials().get(0)).email());
@@ -98,12 +99,13 @@ class SigmundConfigParserTest {
         }
 
         @Test
-        void uidShorthand_parsesNameAndEmail() {
+        void objectSigner_withEmailAndFingerprint() {
             var config = parse("""
                     signers:
                       alice:
-                        uid: "Alice <alice@example.com>"
-                        gpg: "4AEE18F83AFDEB23"
+                        name: "Alice"
+                        email: "alice@example.com"
+                        pgp4: "4AEE18F83AFDEB23"
                     """);
             var alice = config.signers().get("alice");
             assertEquals("Alice", alice.displayName());
@@ -134,7 +136,7 @@ class SigmundConfigParserTest {
         void trustMappings_singleString() {
             var config = parse("""
                     signers:
-                      bob: "Bob <bob@example.com>"
+                      bob: "bob@example.com"
                     trust:
                       "org.example:lib": bob
                     """);
@@ -265,7 +267,7 @@ class SigmundConfigParserTest {
                         email: "alice@example.com"
                         openpgp4: "4AEE18F83AFDEB23"
                         openpgp6: "ABCD1234ABCD1234"
-                      bob: "Bob <bob@example.com>"
+                      bob: "bob@example.com"
                     signing:
                       signer: alice
                     trust:

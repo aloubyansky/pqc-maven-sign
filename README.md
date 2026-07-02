@@ -442,16 +442,16 @@ signers:
     name: "Apache Software Foundation"
     members:
       - gpg: "4AEE18F83AFDEB23468B2E5A2D7BAF3C1E9F5A12"
-        uid: "Maven PMC <dev@maven.apache.org>"
+        email: "dev@maven.apache.org"
       - gpg: "BBE7232D7991050B54C8EA0ADC08637CA615D22C"
 
   # Short form: single-key signer
   jane:
     gpg: "DEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEF"
-    uid: "Jane Doe <jane@example.com>"
+    email: "jane@example.com"
 
-  # Minimal form: uid only
-  jackson-dev: "Tatu Saloranta <tatu@fasterxml.com>"
+  # Minimal form: email only
+  jackson-dev: "tatu@fasterxml.com"
 
 artifacts:
   apache-stack:
@@ -468,7 +468,7 @@ unsigned:
   - com.internal.*
 ```
 
-**Signers** define trusted identities in three forms: full (organization with multiple members), short (single key), or minimal (uid string only). Each member can specify a GPG fingerprint (`gpg`), PQC fingerprint (`pqc`), and/or user ID (`uid`). Fingerprints are matched first; uid is used as a fallback.
+**Signers** define trusted identities in three forms: full (organization with multiple members), short (single key), or minimal (email string only). Each member can specify a GPG fingerprint (`gpg`), PQC fingerprint (`pqc`), and/or email address (`email`). Fingerprints are matched first; email is used as a fallback.
 
 **Artifacts** define named groups of coordinate patterns, referenced by name in `trust`.
 

@@ -1,5 +1,6 @@
 package io.github.aloubyansky.sigmund.plugin;
 
+import io.github.aloubyansky.sigmund.core.GpgRunner;
 import io.github.aloubyansky.sigmund.core.SignatureInfo;
 import io.github.aloubyansky.sigmund.core.VerificationResult;
 import io.github.aloubyansky.sigmund.plugin.SignatureInspector.SignedArtifact;
@@ -539,21 +540,7 @@ public class DependencySignersMojo extends AbstractDependencyMojo {
         List<String> newLines = new ArrayList<>();
         newSigners.values().stream()
                 .sorted(Comparator.comparing(i -> i.id, String.CASE_INSENSITIVE_ORDER))
-                .forEach(info -> {
-                    if (info.uid != null && info.gpgKey != null) {
-                        newLines.add("  " + info.id + ":");
-                        newLines.add("    gpg: \"" + info.gpgKey + "\"");
-                        newLines.add("    uid: \"" + info.uid + "\"");
-                    } else if (info.uid != null) {
-                        newLines.add("  " + info.id + ": \"" + info.uid + "\"");
-                    } else if (info.gpgKey != null) {
-                        newLines.add("  " + info.id + ":");
-                        newLines.add("    gpg: \"" + info.gpgKey + "\"");
-                    } else if (info.pqcKey != null) {
-                        newLines.add("  " + info.id + ":");
-                        newLines.add("    pqc: \"" + info.pqcKey + "\"");
-                    }
-                });
+                .forEach(info -> appendSignerYaml(info, "  ", newLines::add));
         insertAtSectionEnd(lines, "signers", newLines);
     }
 
@@ -612,19 +599,7 @@ public class DependencySignersMojo extends AbstractDependencyMojo {
                 .sorted(Comparator.comparing(i -> i.id, String.CASE_INSENSITIVE_ORDER))
                 .toList();
         for (SignerInfo info : sorted) {
-            if (info.uid != null && info.gpgKey != null) {
-                w.println("  " + info.id + ":");
-                w.println("    gpg: \"" + info.gpgKey + "\"");
-                w.println("    uid: \"" + info.uid + "\"");
-            } else if (info.uid != null) {
-                w.println("  " + info.id + ": \"" + info.uid + "\"");
-            } else if (info.gpgKey != null) {
-                w.println("  " + info.id + ":");
-                w.println("    gpg: \"" + info.gpgKey + "\"");
-            } else if (info.pqcKey != null) {
-                w.println("  " + info.id + ":");
-                w.println("    pqc: \"" + info.pqcKey + "\"");
-            }
+            appendSignerYaml(info, "  ", w::println);
         }
         w.println();
     }
@@ -650,6 +625,28 @@ public class DependencySignersMojo extends AbstractDependencyMojo {
                     }
                 });
         w.println();
+    }
+
+    private static void appendSignerYaml(SignerInfo info, String indent,
+            java.util.function.Consumer<String> out) {
+        boolean hasFingerprint = info.gpgKey != null || info.pqcKey != null;
+        if (!hasFingerprint && info.email == null) {
+            return;
+        }
+        if (info.email != null && !hasFingerprint) {
+            out.accept(indent + info.id + ": \"" + info.email + "\"");
+            return;
+        }
+        out.accept(indent + info.id + ":");
+        if (info.gpgKey != null) {
+            out.accept(indent + "  gpg: \"" + info.gpgKey + "\"");
+        }
+        if (info.pqcKey != null) {
+            out.accept(indent + "  pqc: \"" + info.pqcKey + "\"");
+        }
+        if (info.email != null) {
+            out.accept(indent + "  email: \"" + info.email + "\"");
+        }
     }
 
     private void writeUnsignedSection(PrintWriter w, List<String> unsignedCoords) {
@@ -698,18 +695,18 @@ public class DependencySignersMojo extends AbstractDependencyMojo {
         final String id;
         String gpgKey;
         String pqcKey;
-        String uid;
+        String email;
 
         SignerInfo(String id, SignatureInfo sig) {
             this.id = id;
             this.gpgKey = sig.version() < 6 ? sig.keyId() : null;
             this.pqcKey = sig.version() >= 6 ? sig.keyId() : null;
-            this.uid = sig.signerUserId();
+            this.email = GpgRunner.extractEmail(sig.signerUserId());
         }
 
         void merge(SignatureInfo sig) {
-            if (uid == null && sig.signerUserId() != null) {
-                uid = sig.signerUserId();
+            if (email == null && sig.signerUserId() != null) {
+                email = GpgRunner.extractEmail(sig.signerUserId());
             }
             if (gpgKey == null && sig.version() < 6 && sig.keyId() != null) {
                 gpgKey = sig.keyId();

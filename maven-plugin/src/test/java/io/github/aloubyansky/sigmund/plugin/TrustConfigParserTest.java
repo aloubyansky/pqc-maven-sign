@@ -22,7 +22,7 @@ class TrustConfigParserTest {
                     trust:
                       com.example: alice
                     signers:
-                      alice: "Alice <alice@example.com>"
+                      alice: "alice@example.com"
                     """);
             var s = config.settings();
             assertEquals(List.of(), s.keyservers());
@@ -44,7 +44,7 @@ class TrustConfigParserTest {
                     trust:
                       com.example: alice
                     signers:
-                      alice: "Alice <alice@example.com>"
+                      alice: "alice@example.com"
                     """);
             var s = config.settings();
             assertEquals(List.of("hkps://keys.openpgp.org", "hkps://keyserver.ubuntu.com"),
@@ -62,7 +62,7 @@ class TrustConfigParserTest {
                     trust:
                       com.example: alice
                     signers:
-                      alice: "Alice <alice@example.com>"
+                      alice: "alice@example.com"
                     """));
             assertTrue(ex.getMessage().contains("on-untrusted"));
         }
@@ -77,7 +77,7 @@ class TrustConfigParserTest {
         void minimalForm() throws IOException {
             var config = parse("""
                     signers:
-                      alice: "Alice <alice@example.com>"
+                      alice: "alice@example.com"
                     trust:
                       com.example: alice
                     """);
@@ -88,16 +88,16 @@ class TrustConfigParserTest {
             var member = signer.members().get(0);
             assertNull(member.gpg());
             assertNull(member.pqc());
-            assertEquals("Alice <alice@example.com>", member.uid());
+            assertEquals("alice@example.com", member.email());
         }
 
         @Test
-        void shortFormGpgAndUid() throws IOException {
+        void shortFormGpgAndEmail() throws IOException {
             var config = parse("""
                     signers:
                       jane:
                         gpg: "4AEE18F83AFDEB23468B2E5A2D7BAF3C1E9F5A12"
-                        uid: "Jane Doe <jane@example.com>"
+                        email: "jane@example.com"
                     trust:
                       com.example: jane
                     """);
@@ -107,7 +107,7 @@ class TrustConfigParserTest {
             assertEquals(1, signer.members().size());
             var member = signer.members().get(0);
             assertEquals("4AEE18F83AFDEB23468B2E5A2D7BAF3C1E9F5A12", member.gpg());
-            assertEquals("Jane Doe <jane@example.com>", member.uid());
+            assertEquals("jane@example.com", member.email());
             assertNull(member.pqc());
         }
 
@@ -123,22 +123,22 @@ class TrustConfigParserTest {
             var member = config.signers().get("pqc-signer").members().get(0);
             assertNull(member.gpg());
             assertEquals("A1B2C3D4E5F6A7B8C9D0E1F2A3B4C5D6E7F8A9B0", member.pqc());
-            assertNull(member.uid());
+            assertNull(member.email());
         }
 
         @Test
-        void shortFormUidOnly() throws IOException {
+        void shortFormEmailOnly() throws IOException {
             var config = parse("""
                     signers:
                       guava-team:
-                        uid: "Google Inc <opensource@google.com>"
+                        email: "opensource@google.com"
                     trust:
                       com.google.guava: guava-team
                     """);
             var member = config.signers().get("guava-team").members().get(0);
             assertNull(member.gpg());
             assertNull(member.pqc());
-            assertEquals("Google Inc <opensource@google.com>", member.uid());
+            assertEquals("opensource@google.com", member.email());
         }
 
         @Test
@@ -149,7 +149,7 @@ class TrustConfigParserTest {
                         name: "Apache Software Foundation"
                         members:
                           - gpg: "4AEE18F83AFDEB23468B2E5A2D7BAF3C1E9F5A12"
-                            uid: "Maven PMC <dev@maven.apache.org>"
+                            email: "dev@maven.apache.org"
                           - gpg: "BBE7232D7991050B54C8EA0ADC08637CA615D22C"
                     trust:
                       org.apache.*: apache
@@ -160,11 +160,11 @@ class TrustConfigParserTest {
 
             var m0 = signer.members().get(0);
             assertEquals("4AEE18F83AFDEB23468B2E5A2D7BAF3C1E9F5A12", m0.gpg());
-            assertEquals("Maven PMC <dev@maven.apache.org>", m0.uid());
+            assertEquals("dev@maven.apache.org", m0.email());
 
             var m1 = signer.members().get(1);
             assertEquals("BBE7232D7991050B54C8EA0ADC08637CA615D22C", m1.gpg());
-            assertNull(m1.uid());
+            assertNull(m1.email());
         }
 
         @Test
@@ -173,8 +173,8 @@ class TrustConfigParserTest {
                     signers:
                       team:
                         members:
-                          - uid: "Dev A <a@example.com>"
-                          - uid: "Dev B <b@example.com>"
+                          - email: "a@example.com"
+                          - email: "b@example.com"
                     trust:
                       com.example: team
                     """);
@@ -216,7 +216,7 @@ class TrustConfigParserTest {
         void artifactGroupsDefined() throws IOException {
             var config = parse("""
                     signers:
-                      apache: "Apache <dev@apache.org>"
+                      apache: "dev@apache.org"
                     artifacts:
                       apache-stack:
                         - org.apache.maven.*
@@ -233,7 +233,7 @@ class TrustConfigParserTest {
         void noArtifactsSection() throws IOException {
             var config = parse("""
                     signers:
-                      alice: "Alice <alice@example.com>"
+                      alice: "alice@example.com"
                     trust:
                       com.example: alice
                     """);
@@ -250,7 +250,7 @@ class TrustConfigParserTest {
         void singleSignerRef() throws IOException {
             var config = parse("""
                     signers:
-                      alice: "Alice <alice@example.com>"
+                      alice: "alice@example.com"
                     trust:
                       com.example: alice
                     """);
@@ -261,8 +261,8 @@ class TrustConfigParserTest {
         void multipleSignerRefs() throws IOException {
             var config = parse("""
                     signers:
-                      redhat: "Red Hat <signing@redhat.com>"
-                      jboss: "JBoss <dev@jboss.org>"
+                      redhat: "signing@redhat.com"
+                      jboss: "dev@jboss.org"
                     trust:
                       io.quarkus.*: [redhat, jboss]
                     """);
@@ -273,7 +273,7 @@ class TrustConfigParserTest {
         void unknownSignerRefThrows() {
             var ex = assertThrows(IllegalArgumentException.class, () -> parse("""
                     signers:
-                      alice: "Alice <alice@example.com>"
+                      alice: "alice@example.com"
                     trust:
                       com.example: unknown
                     """));
@@ -284,8 +284,8 @@ class TrustConfigParserTest {
         void multipleEntriesPreserved() throws IOException {
             var config = parse("""
                     signers:
-                      alice: "Alice <alice@example.com>"
-                      bob: "Bob <bob@example.com>"
+                      alice: "alice@example.com"
+                      bob: "bob@example.com"
                     trust:
                       com.example: alice
                       com.other.*: bob
@@ -305,7 +305,7 @@ class TrustConfigParserTest {
         void unsignedPatterns() throws IOException {
             var config = parse("""
                     signers:
-                      alice: "Alice <alice@example.com>"
+                      alice: "alice@example.com"
                     trust:
                       com.example: alice
                     unsigned:
@@ -320,7 +320,7 @@ class TrustConfigParserTest {
         void noUnsignedSection() throws IOException {
             var config = parse("""
                     signers:
-                      alice: "Alice <alice@example.com>"
+                      alice: "alice@example.com"
                     trust:
                       com.example: alice
                     """);
@@ -348,12 +348,12 @@ class TrustConfigParserTest {
                         name: "Apache Software Foundation"
                         members:
                           - gpg: "4AEE18F83AFDEB23468B2E5A2D7BAF3C1E9F5A12"
-                            uid: "Maven PMC <dev@maven.apache.org>"
+                            email: "dev@maven.apache.org"
                           - gpg: "BBE7232D7991050B54C8EA0ADC08637CA615D22C"
                       jane:
                         gpg: "DEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEF"
-                        uid: "Jane Doe <jane@example.com>"
-                      jackson-dev: "Tatu Saloranta <tatu@fasterxml.com>"
+                        email: "jane@example.com"
+                      jackson-dev: "tatu@fasterxml.com"
 
                     artifacts:
                       apache-stack:
@@ -385,8 +385,8 @@ class TrustConfigParserTest {
                     jane.members().get(0).gpg());
 
             var jackson = config.signers().get("jackson-dev");
-            assertEquals("Tatu Saloranta <tatu@fasterxml.com>",
-                    jackson.members().get(0).uid());
+            assertEquals("tatu@fasterxml.com",
+                    jackson.members().get(0).email());
         }
     }
 
@@ -412,22 +412,22 @@ class TrustConfigParserTest {
                       full:
                         gpg: "4AEE18F83AFDEB23468B2E5A2D7BAF3C1E9F5A12"
                         pqc: "A1B2C3D4E5F6A7B8C9D0E1F2A3B4C5D6E7F8A9B0"
-                        uid: "Full Signer <full@example.com>"
+                        email: "full@example.com"
                     trust:
                       com.example: full
                     """);
             var member = config.signers().get("full").members().get(0);
             assertNotNull(member.gpg());
             assertNotNull(member.pqc());
-            assertNotNull(member.uid());
+            assertNotNull(member.email());
         }
 
         @Test
         void trustWithArraySyntaxExpanded() throws IOException {
             var config = parse("""
                     signers:
-                      a: "A <a@example.com>"
-                      b: "B <b@example.com>"
+                      a: "a@example.com"
+                      b: "b@example.com"
                     trust:
                       com.example:
                         - a

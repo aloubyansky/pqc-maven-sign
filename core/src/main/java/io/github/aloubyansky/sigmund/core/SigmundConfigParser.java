@@ -13,8 +13,6 @@ import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 /**
  * Parses {@code sigmund.yaml} configuration files into {@link SigmundConfig}.
@@ -25,13 +23,11 @@ import java.util.regex.Pattern;
  * <li>{@code openpgp6} / {@code pgp6} → {@link FingerprintCredential}("openpgp6", ...)</li>
  * <li>{@code email} → {@link EmailCredential}</li>
  * <li>{@code oidc} → {@link OidcCredential}(issuer, subject)</li>
- * <li>{@code uid} → parsed into displayName + {@link EmailCredential} (backward compat shorthand)</li>
  * </ul>
  */
 class SigmundConfigParser {
 
     private static final ObjectMapper YAML = new ObjectMapper(new YAMLFactory());
-    private static final Pattern UID_PATTERN = Pattern.compile("(.+?)\\s*<(.+?)>");
 
     private SigmundConfigParser() {
     }
@@ -110,15 +106,11 @@ class SigmundConfigParser {
         return parseObjectSigner(id, node);
     }
 
-    private static SignerIdentity parseMinimalSigner(String id, String uid) {
-        String displayName = null;
-        List<Credential> credentials = new ArrayList<>();
-        Matcher m = UID_PATTERN.matcher(uid);
-        if (m.matches()) {
-            displayName = m.group(1).trim();
-            credentials.add(new EmailCredential(m.group(2).trim()));
+    private static SignerIdentity parseMinimalSigner(String id, String email) {
+        if (email.isBlank()) {
+            throw new PolicyConfigException("Signer '" + id + "' must not be empty");
         }
-        return new SignerIdentity(id, displayName, credentials);
+        return new SignerIdentity(id, null, List.of(new EmailCredential(email)));
     }
 
     private static SignerIdentity parseObjectSigner(String id, JsonNode node) {
@@ -131,11 +123,6 @@ class SigmundConfigParser {
         addFingerprintCredential(credentials, node, "pgp6", Credential.TYPE_OPENPGP_V6);
         addEmailCredential(credentials, node);
         addOidcCredential(credentials, node);
-        addUidCredentials(credentials, node, displayName);
-
-        if (displayName == null) {
-            displayName = deriveDisplayName(credentials, node);
-        }
 
         return new SignerIdentity(id, displayName, credentials);
     }
@@ -167,33 +154,6 @@ class SigmundConfigParser {
                 creds.add(new OidcCredential(issuer, subject));
             }
         }
-    }
-
-    private static void addUidCredentials(List<Credential> creds, JsonNode node,
-            String existingDisplayName) {
-        String uid = textField(node, "uid");
-        if (uid == null) {
-            return;
-        }
-        Matcher m = UID_PATTERN.matcher(uid);
-        if (m.matches()) {
-            String email = m.group(2).trim();
-            if (creds.stream().noneMatch(c -> c instanceof EmailCredential ec && ec.email().equals(email))) {
-                creds.add(new EmailCredential(email));
-            }
-        }
-    }
-
-    private static String deriveDisplayName(List<Credential> credentials, JsonNode node) {
-        String uid = textField(node, "uid");
-        if (uid != null) {
-            Matcher m = UID_PATTERN.matcher(uid);
-            if (m.matches()) {
-                return m.group(1).trim();
-            }
-            return uid;
-        }
-        return null;
     }
 
     // --- Signing ---
