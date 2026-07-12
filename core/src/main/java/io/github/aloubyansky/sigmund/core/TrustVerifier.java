@@ -57,11 +57,12 @@ public class TrustVerifier {
     public TrustResult assess(ArtifactIdentity artifact, Path artifactFile,
             List<Path> evidenceFiles) {
         List<SignerIdentity> expectedSigners = resolveExpectedSigners(artifact);
+        List<EvidenceResult> allEvidence = collectEvidence(artifactFile, evidenceFiles);
+
         if (expectedSigners.isEmpty()) {
-            return checkUnsignedOrNotConfigured(artifact, evidenceFiles);
+            return checkUnsignedOrNotConfigured(artifact, evidenceFiles, allEvidence);
         }
 
-        List<EvidenceResult> allEvidence = collectEvidence(artifactFile, evidenceFiles);
         if (allEvidence.isEmpty()) {
             return new TrustResult(artifact, TrustVerdict.UNSIGNED, List.of(), List.of());
         }
@@ -93,11 +94,11 @@ public class TrustVerifier {
     }
 
     private TrustResult checkUnsignedOrNotConfigured(ArtifactIdentity artifact,
-            List<Path> evidenceFiles) {
+            List<Path> evidenceFiles, List<EvidenceResult> allEvidence) {
         if (policy.isUnsignedAllowed(artifact) && (evidenceFiles == null || evidenceFiles.isEmpty())) {
             return new TrustResult(artifact, TrustVerdict.TRUSTED, List.of(), List.of());
         }
-        return new TrustResult(artifact, TrustVerdict.NOT_CONFIGURED, List.of(), List.of());
+        return new TrustResult(artifact, TrustVerdict.NOT_CONFIGURED, List.of(), allEvidence);
     }
 
     private List<EvidenceResult> collectEvidence(Path artifactFile, List<Path> evidenceFiles) {
@@ -127,6 +128,7 @@ public class TrustVerifier {
 
         for (EvidenceResult evidence : allEvidence) {
             if (evidence.verdict() != Verdict.PASS) {
+                unmatched.add(evidence);
                 continue;
             }
             SignerIdentity matchedSigner = findMatchingSigner(expectedSigners, evidence);

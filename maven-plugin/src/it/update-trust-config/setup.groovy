@@ -7,7 +7,7 @@ config.text = """\
 signers:
   # Gary Gregory signs commons-lang3
   gary-gregory:
-    gpg: "2DB4F1EF0FA761ECC4EA935C86FDC7E2A11262CB"
+    pgp4: "2DB4F1EF0FA761ECC4EA935C86FDC7E2A11262CB"
     uid: "Gary David Gregory (Code signing key) <ggregory@apache.org>"
 
 trust:

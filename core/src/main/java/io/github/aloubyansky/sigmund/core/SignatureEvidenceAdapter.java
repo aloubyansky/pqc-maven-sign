@@ -125,7 +125,7 @@ public class SignatureEvidenceAdapter implements EvidenceProvider {
     private EvidenceResult verifyUnit(Path artifactFile, VerificationUnit unit) {
         SignatureTool tool = routeUnitToTool(unit);
         if (tool == null) {
-            return new EvidenceResult(Verdict.SKIPPED, List.of(), name());
+            return new EvidenceResult(new UnverifiedResult(Verdict.SKIPPED), List.of(), name());
         }
 
         VerifyResult result = tool.verify(artifactFile, unit);
@@ -242,6 +242,6 @@ public class SignatureEvidenceAdapter implements EvidenceProvider {
      */
     private EvidenceResult wrapAsEvidence(SignatureTool tool, VerifyResult result) {
         List<Credential> credentials = tool.extractCredentials(result);
-        return new EvidenceResult(result.verdict(), credentials, name());
+        return new EvidenceResult(result, credentials, name());
     }
 }

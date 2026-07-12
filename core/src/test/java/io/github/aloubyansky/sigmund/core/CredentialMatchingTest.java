@@ -6,19 +6,19 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 
-/**
- * Integration tests for the identity matching algorithm:
- * checks for overlap between a signer's credential bag and
- * evidence's proven credentials.
- */
 class CredentialMatchingTest {
+
+    private static final VerifyResult PGP_PASS = new OpenPgpVerifyResult(
+            Verdict.PASS, null, null, 4, null, null);
+    private static final VerifyResult SIGSTORE_PASS = new SigstoreVerifyResult(
+            Verdict.PASS, null, null, null, null);
 
     @Test
     void fingerprintMatch_v4() {
         var signer = new SignerIdentity("alice", "Alice", List.of(
                 new FingerprintCredential("openpgp4", "4AEE18F83AFDEB23")));
 
-        var evidence = new EvidenceResult(Verdict.PASS, List.of(
+        var evidence = new EvidenceResult(PGP_PASS, List.of(
                 new FingerprintCredential("openpgp4",
                         "AB01CD23EF45678901234AEE18F83AFDEB23")),
                 "openpgp");
@@ -31,8 +31,7 @@ class CredentialMatchingTest {
         var signer = new SignerIdentity("alice", "Alice", List.of(
                 new EmailCredential("alice@example.com")));
 
-        // Sigstore produces both OIDC and Email credentials
-        var evidence = new EvidenceResult(Verdict.PASS, List.of(
+        var evidence = new EvidenceResult(SIGSTORE_PASS, List.of(
                 new OidcCredential("https://accounts.google.com", "alice@example.com"),
                 new EmailCredential("alice@example.com")),
                 "sigstore");
@@ -46,7 +45,7 @@ class CredentialMatchingTest {
                 new OidcCredential("https://token.actions.githubusercontent.com",
                         "https://github.com/org/repo")));
 
-        var evidence = new EvidenceResult(Verdict.PASS, List.of(
+        var evidence = new EvidenceResult(SIGSTORE_PASS, List.of(
                 new OidcCredential("https://token.actions.githubusercontent.com",
                         "https://github.com/org/repo")),
                 "sigstore");
@@ -60,7 +59,7 @@ class CredentialMatchingTest {
                 new OidcCredential("https://token.actions.githubusercontent.com",
                         "https://github.com/org/repo")));
 
-        var evidence = new EvidenceResult(Verdict.PASS, List.of(
+        var evidence = new EvidenceResult(SIGSTORE_PASS, List.of(
                 new OidcCredential("https://evil-issuer.com",
                         "https://github.com/org/repo")),
                 "sigstore");
@@ -73,7 +72,7 @@ class CredentialMatchingTest {
         var signer = new SignerIdentity("alice", "Alice", List.of(
                 new FingerprintCredential("openpgp4", "4AEE18F83AFDEB23")));
 
-        var evidence = new EvidenceResult(Verdict.PASS, List.of(
+        var evidence = new EvidenceResult(SIGSTORE_PASS, List.of(
                 new EmailCredential("alice@example.com")),
                 "sigstore");
 
@@ -87,7 +86,7 @@ class CredentialMatchingTest {
                 new FingerprintCredential("openpgp6", "ABCD1234ABCD1234"),
                 new EmailCredential("alice@example.com")));
 
-        var evidence = new EvidenceResult(Verdict.PASS, List.of(
+        var evidence = new EvidenceResult(PGP_PASS, List.of(
                 new FingerprintCredential("openpgp6", "ABCD1234ABCD1234")),
                 "openpgp");
 
@@ -97,17 +96,13 @@ class CredentialMatchingTest {
     @Test
     void emptyCredentials_noMatch() {
         var signer = new SignerIdentity("empty", "Empty", List.of());
-        var evidence = new EvidenceResult(Verdict.PASS, List.of(
+        var evidence = new EvidenceResult(SIGSTORE_PASS, List.of(
                 new EmailCredential("alice@example.com")),
                 "sigstore");
 
         assertFalse(matchesAny(signer, evidence));
     }
 
-    /**
-     * Checks for overlap between a signer's credential bag and evidence's proven credentials.
-     * This is the same algorithm used by {@code TrustVerifier.assess()}.
-     */
     private static boolean matchesAny(SignerIdentity signer, EvidenceResult evidence) {
         for (Credential proven : evidence.provenCredentials()) {
             for (Credential expected : signer.credentials()) {

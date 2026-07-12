@@ -2,10 +2,21 @@ package io.github.aloubyansky.sigmund.core;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+import java.util.List;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
 class VerifyResultTest {
+
+    @Nested
+    class EvidenceResultTests {
+
+        @Test
+        void nullVerifyResult_throws() {
+            assertThrows(IllegalArgumentException.class,
+                    () -> new EvidenceResult(null, List.of(), "test"));
+        }
+    }
 
     @Nested
     class UnverifiedResultTests {

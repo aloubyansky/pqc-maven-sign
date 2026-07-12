@@ -5,29 +5,35 @@ import java.util.List;
 /**
  * The output of verifying a piece of evidence.
  * <p>
- * Carries the verification outcome and the proven credentials so that identity matching
- * is type-agnostic — the trust layer only needs {@link #verdict()} and
- * {@link #provenCredentials()}, never provider-specific details.
+ * Carries the full {@link VerifyResult} (with format-specific details like
+ * signer display name, algorithm, and key metadata) alongside the proven
+ * {@link Credential}s for identity matching.
  * <p>
- * Provider-specific details (OpenPGP key IDs, Sigstore log indices) are handled internally
- * by each {@link EvidenceProvider} and do not leak into the trust layer.
+ * The trust layer only needs {@link #verdict()} and {@link #provenCredentials()}
+ * for policy decisions. Consumers that need richer display info (signer names,
+ * key fingerprints, algorithms) access {@link #verifyResult()} directly.
  *
- * <h3>Examples</h3>
- * <ul>
- * <li>A verified OpenPGP v4 signature produces {@code provenCredentials} containing
- * a {@code FingerprintCredential("openpgp4", "AB01CD23...")}.</li>
- * <li>A verified Sigstore bundle produces an {@code EmailCredential("alice@example.com")}.</li>
- * </ul>
- *
- * @param verdict the verification outcome
+ * @param verifyResult the full verification result
  * @param provenCredentials the credentials proven by this evidence
  * @param provider the evidence provider name (e.g., {@code "openpgp"}, {@code "sigstore"})
  * @see EvidenceProvider
  * @see TrustResult
  */
-public record EvidenceResult(Verdict verdict, List<Credential> provenCredentials, String provider) {
+public record EvidenceResult(VerifyResult verifyResult, List<Credential> provenCredentials, String provider) {
 
     public EvidenceResult {
+        if (verifyResult == null) {
+            throw new IllegalArgumentException("verifyResult must not be null");
+        }
         provenCredentials = provenCredentials != null ? List.copyOf(provenCredentials) : List.of();
+    }
+
+    /**
+     * Returns the verification outcome.
+     *
+     * @return the verdict (PASS, FAIL, NO_KEY, or SKIPPED)
+     */
+    public Verdict verdict() {
+        return verifyResult.verdict();
     }
 }

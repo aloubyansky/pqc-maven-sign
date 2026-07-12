@@ -181,9 +181,9 @@ Output:
 
 ```
 Signature Verification Report:
-  [1] GPG v4 (RSA):              PASS        [key: <key-id>]
-  [2] PQC v6 (ML-DSA-87+Ed448): PASS        [key: <fingerprint>]
-  Overall: PASS (all 2 signatures valid)
+  [1] PASS (RSA) [key: <key-id>]
+  [2] PASS (ML-DSA-87+Ed448) [key: <fingerprint>]
+  Overall: ALL_PASS
 ```
 
 ### 5. Verify backward compatibility
@@ -484,12 +484,12 @@ Example output:
 
 ```
 Signer: Jane Doe <jane@example.com>
-   GPG: DEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEF
+   PGP4 (RSA): DEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEF
      com.example:lib:1.0
 
 UNTRUSTED
   Signer: Unknown <unknown@example.com> (not trusted)
-     GPG: DEADBEEFDEADBEEF
+     PGP4: DEADBEEFDEADBEEF
        com.other:tool:3.0
 
   UNSIGNED
@@ -538,13 +538,13 @@ Example output:
 
 ```
 Signer: Alice <alice@example.com>
-   GPG: 4AEE18F83AFDEB23468B2E5A2D7BAF3C1E9F5A12
-   PQC: D62AAB339E45E5EA2FD036872B01D46A517A2991...
+   PGP4 (RSA): 4AEE18F83AFDEB23468B2E5A2D7BAF3C1E9F5A12
+   PGP6 (ML-DSA-65+Ed25519): D62AAB339E45E5EA2FD036872B01D46A517A2991...
      com.example:lib-a:1.0
      com.example:lib-b:2.0
 
-Signer: NOT VERIFIED
-   GPG: DEADBEEFDEADBEEFDEADBEEF
+Signer: UNKNOWN (key not in keyring)
+   PGP4 (RSA): DEADBEEFDEADBEEFDEADBEEF
      com.other:tool:3.0
 
 UNSIGNED

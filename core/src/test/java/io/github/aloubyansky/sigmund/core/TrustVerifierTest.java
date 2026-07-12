@@ -1,6 +1,7 @@
 package io.github.aloubyansky.sigmund.core;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 
 import java.nio.file.Path;
 import java.util.List;
@@ -95,10 +96,10 @@ class TrustVerifierTest {
             var alice = ALICE;
             var policy = policyFor(alice, true);
             var provider = multiResultProvider(
-                    new EvidenceResult(Verdict.PASS,
+                    new EvidenceResult(PGP_PASS,
                             List.of(new FingerprintCredential("openpgp4", "4AEE18F83AFDEB23")),
                             "openpgp"),
-                    new EvidenceResult(Verdict.PASS,
+                    new EvidenceResult(PGP_PASS,
                             List.of(new FingerprintCredential("openpgp6", "UNKNOWNFINGERPRINT")),
                             "openpgp"));
             var verifier = new TrustVerifier(policy, List.of(provider));
@@ -115,10 +116,10 @@ class TrustVerifierTest {
         void trusted_whenUnmatchedEvidenceButPolicyDoesNotRequireAll() {
             var policy = policyFor(ALICE, false);
             var provider = multiResultProvider(
-                    new EvidenceResult(Verdict.PASS,
+                    new EvidenceResult(PGP_PASS,
                             List.of(new FingerprintCredential("openpgp4", "4AEE18F83AFDEB23")),
                             "openpgp"),
-                    new EvidenceResult(Verdict.PASS,
+                    new EvidenceResult(PGP_PASS,
                             List.of(new FingerprintCredential("openpgp6", "UNKNOWNFINGERPRINT")),
                             "openpgp"));
             var verifier = new TrustVerifier(policy, List.of(provider));
@@ -130,6 +131,46 @@ class TrustVerifierTest {
 
             assertEquals(TrustVerdict.TRUSTED, result.verdict());
             assertEquals(1, result.unmatchedEvidence().size());
+        }
+    }
+
+    @Nested
+    class EvidencePreservation {
+
+        @Test
+        void noKeyEvidence_includedInUnmatched() {
+            var policy = policyFor(ALICE, false);
+            var noKeyResult = new OpenPgpVerifyResult(Verdict.NO_KEY, null, null, 4,
+                    null, "DEADBEEFDEADBEEF");
+            var provider = multiResultProvider(
+                    new EvidenceResult(noKeyResult,
+                            List.of(new FingerprintCredential("openpgp4", "DEADBEEFDEADBEEF")),
+                            "openpgp"));
+            var verifier = new TrustVerifier(policy, List.of(provider));
+
+            var result = verifier.assess(
+                    artifact("org.example", "lib", "1.0"),
+                    Path.of("lib.jar"),
+                    List.of(Path.of("lib.jar.asc")));
+
+            assertEquals(TrustVerdict.UNTRUSTED, result.verdict());
+            assertEquals(1, result.unmatchedEvidence().size());
+            assertEquals(Verdict.NO_KEY, result.unmatchedEvidence().get(0).verdict());
+        }
+
+        @Test
+        void notConfigured_carriesEvidence() {
+            var provider = passingProvider("openpgp",
+                    new FingerprintCredential("openpgp4", "4AEE18F83AFDEB23"));
+            var verifier = new TrustVerifier(emptyPolicy(), List.of(provider));
+
+            var result = verifier.assess(
+                    artifact("org.example", "lib", "1.0"),
+                    Path.of("lib.jar"),
+                    List.of(Path.of("lib.jar.asc")));
+
+            assertEquals(TrustVerdict.NOT_CONFIGURED, result.verdict());
+            assertFalse(result.unmatchedEvidence().isEmpty());
         }
     }
 
@@ -207,6 +248,9 @@ class TrustVerifierTest {
         };
     }
 
+    private static final VerifyResult PGP_PASS = new OpenPgpVerifyResult(
+            Verdict.PASS, null, null, 4, null, null);
+
     private static EvidenceProvider passingProvider(String mechanism, Credential... proven) {
         return new EvidenceProvider() {
             public String name() {
@@ -222,7 +266,8 @@ class TrustVerifierTest {
             }
 
             public List<EvidenceResult> verify(Path a, Path e) {
-                return List.of(new EvidenceResult(Verdict.PASS, List.of(proven), mechanism));
+                return List.of(new EvidenceResult(PGP_PASS,
+                        List.of(proven), mechanism));
             }
         };
     }
@@ -242,7 +287,7 @@ class TrustVerifierTest {
             }
 
             public List<EvidenceResult> verify(Path a, Path e) {
-                return List.of(new EvidenceResult(Verdict.FAIL, List.of(), "openpgp"));
+                return List.of(new EvidenceResult(new UnverifiedResult(Verdict.FAIL), List.of(), "openpgp"));
             }
         };
     }

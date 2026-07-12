@@ -188,18 +188,28 @@ public class DependencySignersMojo extends AbstractDependencyMojo {
             boolean groupHasIssue = sortedKeys.stream()
                     .noneMatch(vr -> vr.signerDisplayName() != null);
 
-            // Print per-key signer + key lines
+            // Print signer name once, then all key lines
+            String signerName = sortedKeys.stream()
+                    .map(VerifyResult::signerDisplayName)
+                    .filter(n -> n != null)
+                    .findFirst().orElse(null);
+            if (signerName != null) {
+                getLog().info("Signer: " + signerName);
+            } else if (sortedKeys.stream().allMatch(vr -> vr.verdict() == Verdict.NO_KEY)) {
+                getLog().warn("Signer: UNKNOWN (key not in keyring)");
+            } else if (sortedKeys.stream().anyMatch(vr -> vr.verdict() == Verdict.FAIL)) {
+                getLog().warn("Signer: VERIFICATION FAILED");
+            } else {
+                getLog().warn("Signer: NOT VERIFIED");
+            }
             for (VerifyResult vr : sortedKeys) {
                 int pgpVersion = vr instanceof OpenPgpVerifyResult opvr ? opvr.version() : -1;
                 String ver = SignatureInspector.versionLabel(pgpVersion);
                 String keyId = vr.signerIdentifier() != null ? vr.signerIdentifier() : "-";
-                String keyLine = "   " + ver + ": " + keyId + formatAlgorithm(vr);
-                boolean verified = vr.signerDisplayName() != null;
-                if (verified) {
-                    getLog().info("Signer: " + vr.signerDisplayName());
+                String keyLine = "   " + ver + formatAlgorithm(vr) + ": " + keyId;
+                if (signerName != null) {
                     getLog().info(keyLine);
                 } else {
-                    getLog().warn("Signer: NOT VERIFIED");
                     getLog().warn(keyLine);
                 }
             }
@@ -297,8 +307,7 @@ public class DependencySignersMojo extends AbstractDependencyMojo {
         if (algo == null) {
             return "";
         }
-        boolean pq = Algorithms.isPqcAlgorithmName(algo);
-        return pq ? " (" + algo + ", PQ)" : " (" + algo + ")";
+        return " (" + algo + ")";
     }
 
     private static String firstSigner(List<String> coordsList,

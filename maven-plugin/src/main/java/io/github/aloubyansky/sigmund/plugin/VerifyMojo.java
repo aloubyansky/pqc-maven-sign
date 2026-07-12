@@ -5,17 +5,17 @@ import io.github.aloubyansky.sigmund.core.ArtifactIdentity;
 import io.github.aloubyansky.sigmund.core.AssessmentRequest;
 import io.github.aloubyansky.sigmund.core.Credential;
 import io.github.aloubyansky.sigmund.core.EvidenceResult;
-import io.github.aloubyansky.sigmund.core.FileSignatureReport;
 import io.github.aloubyansky.sigmund.core.FingerprintCredential;
 import io.github.aloubyansky.sigmund.core.MatchedEvidence;
 import io.github.aloubyansky.sigmund.core.OpenPgpVerifyResult;
 import io.github.aloubyansky.sigmund.core.Sigmund;
-import io.github.aloubyansky.sigmund.core.SignatureVerificationReport;
 import io.github.aloubyansky.sigmund.core.SignerIdentity;
 import io.github.aloubyansky.sigmund.core.TrustPolicy;
 import io.github.aloubyansky.sigmund.core.TrustResult;
 import io.github.aloubyansky.sigmund.core.TrustVerdict;
 import io.github.aloubyansky.sigmund.core.TrustVerifier;
+import io.github.aloubyansky.sigmund.core.UnverifiedResult;
+import io.github.aloubyansky.sigmund.core.Verdict;
 import io.github.aloubyansky.sigmund.core.VerifyResult;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -94,7 +94,7 @@ public class VerifyMojo extends AbstractDependencyMojo {
 
         List<TrustResult> results = verifier.assessAll(requests);
 
-        Map<Integer, List<EnrichedSignerInfo>> enriched = enrichResults(results, requests, sigmund);
+        Map<Integer, List<EnrichedSignerInfo>> enriched = enrichResults(results);
 
         boolean failPolicy = "fail".equals(settings.onUntrusted());
         boolean verifyAll = settings.verifyAllSignatures();
@@ -133,59 +133,24 @@ public class VerifyMojo extends AbstractDependencyMojo {
     }
 
     /**
-     * Returns {@code true} if the result lacks signer details that raw
-     * signature verification could provide (NOT_CONFIGURED or UNTRUSTED
-     * with no unmatched evidence to display).
-     */
-    private boolean needsEnrichment(TrustResult result) {
-        if (result.verdict() == TrustVerdict.NOT_CONFIGURED) {
-            return true;
-        }
-        if (result.verdict() == TrustVerdict.UNTRUSTED
-                && result.unmatchedEvidence().isEmpty()) {
-            return true;
-        }
-        return false;
-    }
-
-    /**
-     * Re-verifies signatures for artifacts whose trust result lacks signer
-     * details, extracting key/algorithm info for display.
+     * Extracts display-ready signer info from unmatched evidence in trust results.
+     * Uses the {@link VerifyResult} already carried by {@link EvidenceResult},
+     * avoiding re-verification.
      *
      * @return map from result index to the extracted signer info list
      */
-    private Map<Integer, List<EnrichedSignerInfo>> enrichResults(
-            List<TrustResult> results, List<AssessmentRequest> requests,
-            Sigmund sigmund) {
+    private Map<Integer, List<EnrichedSignerInfo>> enrichResults(List<TrustResult> results) {
         Map<Integer, List<EnrichedSignerInfo>> enriched = new HashMap<>();
         for (int i = 0; i < results.size(); i++) {
             TrustResult result = results.get(i);
-            if (!needsEnrichment(result)) {
-                continue;
-            }
-            AssessmentRequest req = requests.get(i);
-            if (req.evidenceFiles().isEmpty()) {
+            if (result.unmatchedEvidence().isEmpty()) {
                 continue;
             }
             List<EnrichedSignerInfo> infos = new ArrayList<>();
-            for (Path evidenceFile : req.evidenceFiles()) {
-                try {
-                    SignatureVerificationReport report = sigmund.verify(
-                            req.artifactFile(), evidenceFile);
-                    for (FileSignatureReport fileReport : report.files()) {
-                        for (VerifyResult vr : fileReport.results()) {
-                            EnrichedSignerInfo info = extractSignerInfo(vr);
-                            if (info != null) {
-                                infos.add(info);
-                            }
-                        }
-                    }
-                } catch (Exception e) {
-                    getLog().debug("Enrichment failed for " + req.artifact().namespace()
-                            + ":" + req.artifact().name() + " (" + evidenceFile.getFileName()
-                            + "): " + e.getMessage());
-                    infos.add(new EnrichedSignerInfo(null,
-                            "signature present, verification failed", true));
+            for (EvidenceResult evidence : result.unmatchedEvidence()) {
+                EnrichedSignerInfo info = extractSignerInfo(evidence.verifyResult());
+                if (info != null) {
+                    infos.add(info);
                 }
             }
             if (!infos.isEmpty()) {
@@ -200,17 +165,24 @@ public class VerifyMojo extends AbstractDependencyMojo {
      *
      * @return the enriched info, or {@code null} if the result has no useful identity data
      */
-    private EnrichedSignerInfo extractSignerInfo(VerifyResult vr) {
+    private static EnrichedSignerInfo extractSignerInfo(VerifyResult vr) {
         if (vr instanceof OpenPgpVerifyResult opvr) {
             String label = Algorithms.versionLabel(opvr.version());
-            String keyId = opvr.fingerprint() != null
-                    ? opvr.fingerprint()
-                    : (opvr.keyId() != null ? opvr.keyId() : "unknown");
-            return new EnrichedSignerInfo(opvr.signerDisplayName(), label + ": " + keyId);
+            String algo = vr.algorithm() != null ? " (" + vr.algorithm() + ")" : "";
+            String keyId = opvr.preferredKeyId() != null ? opvr.preferredKeyId() : "unknown";
+            String suffix = vr.verdict() != Verdict.PASS ? " (" + vr.verdict() + ")" : "";
+            return new EnrichedSignerInfo(opvr.signerDisplayName(), label + algo + ": " + keyId + suffix);
         }
         if (vr.signerDisplayName() != null) {
-            return new EnrichedSignerInfo(vr.signerDisplayName(),
-                    vr.algorithm() != null ? vr.algorithm() : "unknown");
+            String keyLine = vr.algorithm() != null ? vr.algorithm() : "unknown";
+            if (vr.verdict() != Verdict.PASS) {
+                keyLine += " (" + vr.verdict() + ")";
+            }
+            return new EnrichedSignerInfo(vr.signerDisplayName(), keyLine);
+        }
+        if (vr instanceof UnverifiedResult) {
+            return new EnrichedSignerInfo(null,
+                    "signature present, verification failed", true);
         }
         return null;
     }
