@@ -1,5 +1,7 @@
 # Sigmund — Hybrid PQC Signing for Maven Artifacts
 
+> **This project has moved to [github.com/cyberstamp/sigmund](https://github.com/cyberstamp/sigmund).** This repository is no longer maintained.
+
 ## Overview
 
 This tool adds post-quantum cryptographic (PQC) signatures to Maven artifacts alongside classic GPG signatures. Each `.asc` signature file can contain any number of OpenPGP signature blocks. A typical hybrid file contains:
