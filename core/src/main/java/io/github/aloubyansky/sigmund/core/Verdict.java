@@ -1,21 +1,20 @@
 package io.github.aloubyansky.sigmund.core;
 
 /**
- * Represents the outcome of a signature verification operation.
+ * The outcome of a signature verification operation.
  * <p>
  * Distinguishes between successful verification, failed verification,
  * missing keys, and skipped verification.
  *
  * @see SignatureTool#verify(java.nio.file.Path, VerificationUnit)
  */
-public enum VerificationResult {
+public enum Verdict {
 
     /**
      * The signature is valid and verification passed.
      * <p>
      * This indicates that the signature was successfully verified against the
      * expected public key and the signed data matches the signature.
-     *
      */
     PASS,
 
@@ -28,7 +27,6 @@ public enum VerificationResult {
      * <li>The signature was created by a different key than expected</li>
      * <li>The signed data has been modified since signing</li>
      * </ul>
-     *
      */
     FAIL,
 
@@ -39,7 +37,6 @@ public enum VerificationResult {
      * public key needed to verify the signature. This is distinct from
      * {@link #FAIL}, as it represents a configuration issue rather than an
      * invalid signature.
-     *
      */
     NO_KEY,
 

@@ -18,7 +18,7 @@ class CredentialMatchingTest {
         var signer = new SignerIdentity("alice", "Alice", List.of(
                 new FingerprintCredential("openpgp4", "4AEE18F83AFDEB23")));
 
-        var evidence = new EvidenceResult(VerificationResult.PASS, List.of(
+        var evidence = new EvidenceResult(Verdict.PASS, List.of(
                 new FingerprintCredential("openpgp4",
                         "AB01CD23EF45678901234AEE18F83AFDEB23")),
                 "openpgp");
@@ -32,7 +32,7 @@ class CredentialMatchingTest {
                 new EmailCredential("alice@example.com")));
 
         // Sigstore produces both OIDC and Email credentials
-        var evidence = new EvidenceResult(VerificationResult.PASS, List.of(
+        var evidence = new EvidenceResult(Verdict.PASS, List.of(
                 new OidcCredential("https://accounts.google.com", "alice@example.com"),
                 new EmailCredential("alice@example.com")),
                 "sigstore");
@@ -46,7 +46,7 @@ class CredentialMatchingTest {
                 new OidcCredential("https://token.actions.githubusercontent.com",
                         "https://github.com/org/repo")));
 
-        var evidence = new EvidenceResult(VerificationResult.PASS, List.of(
+        var evidence = new EvidenceResult(Verdict.PASS, List.of(
                 new OidcCredential("https://token.actions.githubusercontent.com",
                         "https://github.com/org/repo")),
                 "sigstore");
@@ -60,7 +60,7 @@ class CredentialMatchingTest {
                 new OidcCredential("https://token.actions.githubusercontent.com",
                         "https://github.com/org/repo")));
 
-        var evidence = new EvidenceResult(VerificationResult.PASS, List.of(
+        var evidence = new EvidenceResult(Verdict.PASS, List.of(
                 new OidcCredential("https://evil-issuer.com",
                         "https://github.com/org/repo")),
                 "sigstore");
@@ -73,7 +73,7 @@ class CredentialMatchingTest {
         var signer = new SignerIdentity("alice", "Alice", List.of(
                 new FingerprintCredential("openpgp4", "4AEE18F83AFDEB23")));
 
-        var evidence = new EvidenceResult(VerificationResult.PASS, List.of(
+        var evidence = new EvidenceResult(Verdict.PASS, List.of(
                 new EmailCredential("alice@example.com")),
                 "sigstore");
 
@@ -87,7 +87,7 @@ class CredentialMatchingTest {
                 new FingerprintCredential("openpgp6", "ABCD1234ABCD1234"),
                 new EmailCredential("alice@example.com")));
 
-        var evidence = new EvidenceResult(VerificationResult.PASS, List.of(
+        var evidence = new EvidenceResult(Verdict.PASS, List.of(
                 new FingerprintCredential("openpgp6", "ABCD1234ABCD1234")),
                 "openpgp");
 
@@ -97,7 +97,7 @@ class CredentialMatchingTest {
     @Test
     void emptyCredentials_noMatch() {
         var signer = new SignerIdentity("empty", "Empty", List.of());
-        var evidence = new EvidenceResult(VerificationResult.PASS, List.of(
+        var evidence = new EvidenceResult(Verdict.PASS, List.of(
                 new EmailCredential("alice@example.com")),
                 "sigstore");
 

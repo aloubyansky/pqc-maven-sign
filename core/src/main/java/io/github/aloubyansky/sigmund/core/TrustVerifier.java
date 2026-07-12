@@ -117,7 +117,7 @@ public class TrustVerifier {
 
     private boolean hasVerificationFailure(List<EvidenceResult> evidence) {
         return evidence.stream()
-                .anyMatch(e -> e.result() == VerificationResult.FAIL);
+                .anyMatch(e -> e.verdict() == Verdict.FAIL);
     }
 
     private TrustResult matchCredentials(ArtifactIdentity artifact,
@@ -126,7 +126,7 @@ public class TrustVerifier {
         List<EvidenceResult> unmatched = new ArrayList<>();
 
         for (EvidenceResult evidence : allEvidence) {
-            if (evidence.result() != VerificationResult.PASS) {
+            if (evidence.verdict() != Verdict.PASS) {
                 continue;
             }
             SignerIdentity matchedSigner = findMatchingSigner(expectedSigners, evidence);

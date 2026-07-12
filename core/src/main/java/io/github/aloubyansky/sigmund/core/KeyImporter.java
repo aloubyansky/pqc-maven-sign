@@ -5,7 +5,7 @@ package io.github.aloubyansky.sigmund.core;
  * <p>
  * Used during verification when a signing key is not in the local keyring.
  * The {@link SignatureEvidenceAdapter} calls this when a verification result
- * has {@link VerificationResult#NO_KEY} and {@link DiscoveryConfig#fetchSignerInfo()}
+ * has {@link Verdict#NO_KEY} and {@link DiscoveryConfig#fetchSignerInfo()}
  * is enabled.
  *
  * @see DiscoveryConfig

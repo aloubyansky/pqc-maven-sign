@@ -46,7 +46,7 @@ public class VerifyArtifactMojo extends AbstractMojo {
         SignatureVerificationReport report = performVerification(sigmund);
 
         logReport(report);
-        checkVerificationResult(report);
+        checkVerdict(report);
     }
 
     private void validateInputFiles() throws MojoExecutionException {
@@ -94,7 +94,7 @@ public class VerifyArtifactMojo extends AbstractMojo {
         getLog().info("");
     }
 
-    private void checkVerificationResult(SignatureVerificationReport report)
+    private void checkVerdict(SignatureVerificationReport report)
             throws MojoExecutionException {
         boolean pass = lenient ? report.isLenientPass() : report.isPass();
         if (!pass) {

@@ -27,7 +27,7 @@ class SignatureEvidenceAdapterTest {
             List<EvidenceResult> results = adapter.verify(ARTIFACT, EVIDENCE);
 
             assertEquals(1, results.size());
-            assertEquals(VerificationResult.PASS, results.get(0).result());
+            assertEquals(Verdict.PASS, results.get(0).verdict());
             assertEquals(1, results.get(0).provenCredentials().size());
             assertEquals("openpgp4", results.get(0).provenCredentials().get(0).type());
             assertEquals("openpgp", results.get(0).provider());
@@ -41,7 +41,7 @@ class SignatureEvidenceAdapterTest {
             List<EvidenceResult> results = adapter.verify(ARTIFACT, EVIDENCE);
 
             assertEquals(1, results.size());
-            assertEquals(VerificationResult.SKIPPED, results.get(0).result());
+            assertEquals(Verdict.SKIPPED, results.get(0).verdict());
             assertTrue(results.get(0).provenCredentials().isEmpty());
         }
 
@@ -104,7 +104,7 @@ class SignatureEvidenceAdapterTest {
 
             List<EvidenceResult> results = adapter.verify(ARTIFACT, EVIDENCE);
 
-            assertEquals(VerificationResult.NO_KEY, results.get(0).result());
+            assertEquals(Verdict.NO_KEY, results.get(0).verdict());
         }
 
         @Test
@@ -116,7 +116,7 @@ class SignatureEvidenceAdapterTest {
 
             List<EvidenceResult> results = adapter.verify(ARTIFACT, EVIDENCE);
 
-            assertEquals(VerificationResult.PASS, results.get(0).result());
+            assertEquals(Verdict.PASS, results.get(0).verdict());
         }
 
         @Test
@@ -127,7 +127,7 @@ class SignatureEvidenceAdapterTest {
 
             List<EvidenceResult> results = adapter.verify(ARTIFACT, EVIDENCE);
 
-            assertEquals(VerificationResult.NO_KEY, results.get(0).result());
+            assertEquals(Verdict.NO_KEY, results.get(0).verdict());
         }
 
         @Test
@@ -139,7 +139,7 @@ class SignatureEvidenceAdapterTest {
 
             List<EvidenceResult> results = adapter.verify(ARTIFACT, EVIDENCE);
 
-            assertEquals(VerificationResult.NO_KEY, results.get(0).result());
+            assertEquals(Verdict.NO_KEY, results.get(0).verdict());
         }
     }
 
@@ -180,11 +180,11 @@ class SignatureEvidenceAdapterTest {
     }
 
     private static OpenPgpVerifyResult passVerifyResult() {
-        return new OpenPgpVerifyResult(VerificationResult.PASS, "Test", "RSA", 4, FP, FP);
+        return new OpenPgpVerifyResult(Verdict.PASS, "Test", "RSA", 4, FP, FP);
     }
 
     private static OpenPgpVerifyResult noKeyVerifyResult() {
-        return new OpenPgpVerifyResult(VerificationResult.NO_KEY, null, null, 4, null, null);
+        return new OpenPgpVerifyResult(Verdict.NO_KEY, null, null, 4, null, null);
     }
 
     private static SignatureTool mockTool(String name, boolean available, boolean canVerify,
@@ -339,14 +339,14 @@ class SignatureEvidenceAdapterTest {
         @Override
         public VerifyResult verify(Path a, VerificationUnit u) {
             if (imported) {
-                return new OpenPgpVerifyResult(VerificationResult.PASS, "Test", "RSA", 4, FP, FP);
+                return new OpenPgpVerifyResult(Verdict.PASS, "Test", "RSA", 4, FP, FP);
             }
-            return new OpenPgpVerifyResult(VerificationResult.NO_KEY, null, null, 4, null, null);
+            return new OpenPgpVerifyResult(Verdict.NO_KEY, null, null, 4, null, null);
         }
 
         @Override
         public List<Credential> extractCredentials(VerifyResult r) {
-            if (r.result() == VerificationResult.PASS) {
+            if (r.verdict() == Verdict.PASS) {
                 return List.of(new FingerprintCredential("openpgp4", FP));
             }
             return List.of();

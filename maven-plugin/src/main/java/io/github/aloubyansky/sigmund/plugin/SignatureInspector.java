@@ -3,12 +3,11 @@ package io.github.aloubyansky.sigmund.plugin;
 import io.github.aloubyansky.sigmund.core.FileSignatureReport;
 import io.github.aloubyansky.sigmund.core.GpgRunner;
 import io.github.aloubyansky.sigmund.core.KeyImporter;
-import io.github.aloubyansky.sigmund.core.OpenPgpVerifyResult;
 import io.github.aloubyansky.sigmund.core.Sigmund;
-import io.github.aloubyansky.sigmund.core.SignatureInfo;
 import io.github.aloubyansky.sigmund.core.SignatureVerificationReport;
 import io.github.aloubyansky.sigmund.core.SqRunner;
-import io.github.aloubyansky.sigmund.core.VerificationResult;
+import io.github.aloubyansky.sigmund.core.UnverifiedResult;
+import io.github.aloubyansky.sigmund.core.Verdict;
 import io.github.aloubyansky.sigmund.core.VerifyResult;
 import java.io.File;
 import java.nio.file.Path;
@@ -132,16 +131,14 @@ class SignatureInspector {
 
         ArtifactFileResolver.ResolvedArtifact resolved = fileResolver.resolveArtifact(coords);
         if (resolved == null) {
-            return List.of(new SignedArtifact(coordsStr, null,
-                    new SignatureInfo(-1, null, null, null, VerificationResult.SKIPPED)));
+            return List.of(new SignedArtifact(coordsStr, null, Verdict.SKIPPED));
         }
 
         List<RemoteRepository> sigRepos = fileResolver.signatureRepos(resolved.sourceRepo());
         ArtifactFileResolver.ResolvedSignature sigResult = fileResolver.resolveSignature(
                 coords, ".asc", sigRepos);
         if (sigResult == null) {
-            return List.of(new SignedArtifact(coordsStr, null,
-                    new SignatureInfo(-1, null, null, null, VerificationResult.SKIPPED)));
+            return List.of(new SignedArtifact(coordsStr, null, Verdict.SKIPPED));
         }
 
         String repoId = sigResult.repoId();
@@ -152,25 +149,21 @@ class SignatureInspector {
             report = sigmund.verify(resolved.artifactFile(), ascFile);
         } catch (Exception e) {
             log.warn("Verification failed for " + coordsStr + ": " + e.getMessage());
-            return List.of(new SignedArtifact(coordsStr, repoId,
-                    new SignatureInfo(-1, null, null, null, VerificationResult.FAIL)));
+            return List.of(new SignedArtifact(coordsStr, repoId, Verdict.FAIL));
         }
 
         if (report.files().isEmpty()) {
-            return List.of(new SignedArtifact(coordsStr, repoId,
-                    new SignatureInfo(-1, null, null, null, VerificationResult.SKIPPED)));
+            return List.of(new SignedArtifact(coordsStr, repoId, Verdict.SKIPPED));
         }
 
         List<SignedArtifact> entries = new ArrayList<>();
         for (FileSignatureReport fileReport : report.files()) {
             if (fileReport.results().isEmpty()) {
-                entries.add(new SignedArtifact(coordsStr, repoId,
-                        new SignatureInfo(-1, null, null, null, VerificationResult.SKIPPED)));
+                entries.add(new SignedArtifact(coordsStr, repoId, Verdict.SKIPPED));
                 continue;
             }
             for (VerifyResult vr : fileReport.results()) {
-                SignatureInfo sig = toSignatureInfo(vr);
-                SignedArtifact entry = new SignedArtifact(coordsStr, repoId, sig,
+                SignedArtifact entry = new SignedArtifact(coordsStr, repoId, vr,
                         resolved.artifactFile(), ascFile);
                 SignedArtifact fetched;
                 try {
@@ -179,37 +172,27 @@ class SignatureInspector {
                     log.debug("Signer info fetch failed for " + coordsStr + ": " + e.getMessage());
                     fetched = entry;
                 }
-                entries.add(new SignedArtifact(fetched.coordinates(), fetched.repoId(),
-                        fetched.signatureInfo()));
+                entries.add(fetched);
             }
         }
 
         return entries;
     }
 
-    private static SignatureInfo toSignatureInfo(VerifyResult vr) {
-        if (vr instanceof OpenPgpVerifyResult opvr) {
-            String keyId = opvr.fingerprint() != null ? opvr.fingerprint() : opvr.keyId();
-            return new SignatureInfo(opvr.version(), keyId, opvr.algorithm(),
-                    opvr.signerDisplayName(), opvr.result());
-        }
-        return new SignatureInfo(-1, null, vr.algorithm(),
-                vr.signerDisplayName(), vr.result());
-    }
-
     SignedArtifact fetchSignerInfoIfMissing(SignedArtifact entry) {
-        SignatureInfo sig = entry.signatureInfo();
-        if (keyServers.isEmpty() || sig.keyId() == null || sig.signerUserId() != null) {
+        String id = entry.verifyResult().signerIdentifier();
+        if (keyServers.isEmpty() || id == null
+                || entry.verifyResult().signerDisplayName() != null) {
             return entry;
         }
         if (keyImporter == null) {
             return entry;
         }
-        if (!fetchedKeyIds.add(sig.keyId())) {
+        if (!fetchedKeyIds.add(id)) {
             return reverify(entry);
         }
         for (String server : keyServers) {
-            if (keyImporter.importKey(sig.keyId(), server)) {
+            if (keyImporter.importKey(id, server)) {
                 return reverify(entry);
             }
         }
@@ -226,14 +209,13 @@ class SignatureInspector {
             if (report.files().isEmpty()) {
                 return entry;
             }
+            String entryId = entry.verifyResult().signerIdentifier();
             FileSignatureReport fileReport = report.files().get(0);
             for (VerifyResult vr : fileReport.results()) {
-                if (vr instanceof OpenPgpVerifyResult opvr) {
-                    String keyId = opvr.fingerprint() != null ? opvr.fingerprint() : opvr.keyId();
-                    if (keyId != null && keyId.equalsIgnoreCase(entry.signatureInfo().keyId())) {
-                        return new SignedArtifact(entry.coordinates(), entry.repoId(),
-                                toSignatureInfo(vr), entry.artifactFile(), entry.signatureFile());
-                    }
+                String id = vr.signerIdentifier();
+                if (id != null && id.equalsIgnoreCase(entryId)) {
+                    return new SignedArtifact(entry.coordinates(), entry.repoId(),
+                            vr, entry.artifactFile(), entry.signatureFile());
                 }
             }
         } catch (Exception e) {
@@ -253,10 +235,15 @@ class SignatureInspector {
         return servers;
     }
 
-    record SignedArtifact(String coordinates, String repoId, SignatureInfo signatureInfo,
-            Path artifactFile, Path signatureFile) {
-        SignedArtifact(String coordinates, String repoId, SignatureInfo signatureInfo) {
-            this(coordinates, repoId, signatureInfo, null, null);
+    record SignedArtifact(String coordinates, String repoId,
+            VerifyResult verifyResult, Path artifactFile, Path signatureFile) {
+
+        SignedArtifact(String coordinates, String repoId, Verdict verdict) {
+            this(coordinates, repoId, new UnverifiedResult(verdict), null, null);
+        }
+
+        Verdict verdict() {
+            return verifyResult.verdict();
         }
     }
 }

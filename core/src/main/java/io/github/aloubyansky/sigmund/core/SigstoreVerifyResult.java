@@ -16,15 +16,15 @@ public final class SigstoreVerifyResult extends VerifyResult {
     /**
      * Creates a new Sigstore verification result.
      *
-     * @param result the verification outcome
+     * @param verdict the verification outcome
      * @param signerDisplayName human-readable signer (typically the OIDC subject), or {@code null}
      * @param algorithm the algorithm name, or {@code null}
      * @param issuer the OIDC issuer URL, or {@code null}
      * @param logIndex the Rekor transparency log entry index, or {@code null}
      */
-    public SigstoreVerifyResult(VerificationResult result, String signerDisplayName,
+    public SigstoreVerifyResult(Verdict verdict, String signerDisplayName,
             String algorithm, String issuer, String logIndex) {
-        super(result, signerDisplayName, algorithm);
+        super(verdict, signerDisplayName, algorithm);
         this.issuer = issuer;
         this.logIndex = logIndex;
     }
@@ -46,4 +46,5 @@ public final class SigstoreVerifyResult extends VerifyResult {
     public String logIndex() {
         return logIndex;
     }
+
 }

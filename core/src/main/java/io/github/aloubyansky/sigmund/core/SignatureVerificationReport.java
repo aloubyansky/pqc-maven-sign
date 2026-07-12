@@ -26,13 +26,13 @@ public class SignatureVerificationReport {
      *
      * @return the overall outcome
      */
-    public VerificationOutcome outcome() {
+    public OverallVerdict outcome() {
         boolean anyPass = false;
         boolean anyFail = false;
         boolean anySkip = false;
         for (FileSignatureReport file : files) {
             for (VerifyResult r : file.results()) {
-                switch (r.result()) {
+                switch (r.verdict()) {
                     case PASS -> anyPass = true;
                     case FAIL -> anyFail = true;
                     case NO_KEY, SKIPPED -> anySkip = true;
@@ -42,15 +42,15 @@ public class SignatureVerificationReport {
             }
         }
         if (!anyPass && !anyFail && !anySkip) {
-            return VerificationOutcome.NONE_PASSED;
+            return OverallVerdict.NONE_PASSED;
         }
         if (anyPass && !anyFail) {
-            return anySkip ? VerificationOutcome.PASS_WITH_SKIPS : VerificationOutcome.ALL_PASS;
+            return anySkip ? OverallVerdict.PASS_WITH_SKIPS : OverallVerdict.ALL_PASS;
         }
         if (anyPass) {
-            return VerificationOutcome.PASS_WITH_FAILURES;
+            return OverallVerdict.PASS_WITH_FAILURES;
         }
-        return VerificationOutcome.NONE_PASSED;
+        return OverallVerdict.NONE_PASSED;
     }
 
     /**
@@ -65,10 +65,10 @@ public class SignatureVerificationReport {
     /**
      * Strict pass: all signatures must be valid.
      *
-     * @return {@code true} if outcome is {@link VerificationOutcome#ALL_PASS}
+     * @return {@code true} if outcome is {@link OverallVerdict#ALL_PASS}
      */
     public boolean isPass() {
-        return outcome() == VerificationOutcome.ALL_PASS;
+        return outcome() == OverallVerdict.ALL_PASS;
     }
 
     /**
@@ -78,7 +78,7 @@ public class SignatureVerificationReport {
      */
     public boolean isLenientPass() {
         var o = outcome();
-        return o == VerificationOutcome.ALL_PASS || o == VerificationOutcome.PASS_WITH_SKIPS;
+        return o == OverallVerdict.ALL_PASS || o == OverallVerdict.PASS_WITH_SKIPS;
     }
 
     /**
@@ -102,7 +102,7 @@ public class SignatureVerificationReport {
     }
 
     private void formatResult(StringBuilder sb, VerifyResult r) {
-        sb.append(r.result());
+        sb.append(r.verdict());
         if (r.algorithm() != null) {
             sb.append(" (").append(r.algorithm()).append(')');
         }

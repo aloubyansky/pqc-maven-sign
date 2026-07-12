@@ -20,16 +20,16 @@ public final class OpenPgpVerifyResult extends VerifyResult {
     /**
      * Creates a new OpenPGP verification result.
      *
-     * @param result the verification outcome
+     * @param verdict the verification outcome
      * @param signerDisplayName human-readable signer (typically the UID), or {@code null}
      * @param algorithm the algorithm name, or {@code null}
      * @param version the signature packet version (4, 6, etc.)
      * @param keyId the short key ID, or {@code null} if unknown
      * @param fingerprint the full fingerprint, or {@code null} if unknown
      */
-    public OpenPgpVerifyResult(VerificationResult result, String signerDisplayName,
+    public OpenPgpVerifyResult(Verdict verdict, String signerDisplayName,
             String algorithm, int version, String keyId, String fingerprint) {
-        super(result, signerDisplayName, algorithm);
+        super(verdict, signerDisplayName, algorithm);
         this.version = version;
         this.keyId = keyId;
         this.fingerprint = fingerprint;
@@ -60,5 +60,19 @@ public final class OpenPgpVerifyResult extends VerifyResult {
      */
     public String fingerprint() {
         return fingerprint;
+    }
+
+    /**
+     * Returns the fingerprint if available, falling back to the short key ID.
+     *
+     * @return the best available key identifier, or {@code null} if neither is known
+     */
+    public String preferredKeyId() {
+        return fingerprint != null ? fingerprint : keyId;
+    }
+
+    @Override
+    public String signerIdentifier() {
+        return preferredKeyId();
     }
 }

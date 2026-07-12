@@ -95,10 +95,10 @@ class TrustVerifierTest {
             var alice = ALICE;
             var policy = policyFor(alice, true);
             var provider = multiResultProvider(
-                    new EvidenceResult(VerificationResult.PASS,
+                    new EvidenceResult(Verdict.PASS,
                             List.of(new FingerprintCredential("openpgp4", "4AEE18F83AFDEB23")),
                             "openpgp"),
-                    new EvidenceResult(VerificationResult.PASS,
+                    new EvidenceResult(Verdict.PASS,
                             List.of(new FingerprintCredential("openpgp6", "UNKNOWNFINGERPRINT")),
                             "openpgp"));
             var verifier = new TrustVerifier(policy, List.of(provider));
@@ -115,10 +115,10 @@ class TrustVerifierTest {
         void trusted_whenUnmatchedEvidenceButPolicyDoesNotRequireAll() {
             var policy = policyFor(ALICE, false);
             var provider = multiResultProvider(
-                    new EvidenceResult(VerificationResult.PASS,
+                    new EvidenceResult(Verdict.PASS,
                             List.of(new FingerprintCredential("openpgp4", "4AEE18F83AFDEB23")),
                             "openpgp"),
-                    new EvidenceResult(VerificationResult.PASS,
+                    new EvidenceResult(Verdict.PASS,
                             List.of(new FingerprintCredential("openpgp6", "UNKNOWNFINGERPRINT")),
                             "openpgp"));
             var verifier = new TrustVerifier(policy, List.of(provider));
@@ -222,7 +222,7 @@ class TrustVerifierTest {
             }
 
             public List<EvidenceResult> verify(Path a, Path e) {
-                return List.of(new EvidenceResult(VerificationResult.PASS, List.of(proven), mechanism));
+                return List.of(new EvidenceResult(Verdict.PASS, List.of(proven), mechanism));
             }
         };
     }
@@ -242,7 +242,7 @@ class TrustVerifierTest {
             }
 
             public List<EvidenceResult> verify(Path a, Path e) {
-                return List.of(new EvidenceResult(VerificationResult.FAIL, List.of(), "openpgp"));
+                return List.of(new EvidenceResult(Verdict.FAIL, List.of(), "openpgp"));
             }
         };
     }

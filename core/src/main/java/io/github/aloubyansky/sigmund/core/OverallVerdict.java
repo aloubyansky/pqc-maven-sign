@@ -5,9 +5,9 @@ package io.github.aloubyansky.sigmund.core;
  *
  * @see SignatureVerificationReport#outcome()
  */
-public enum VerificationOutcome {
+public enum OverallVerdict {
 
-    /** Every signature in the report has {@link VerificationResult#PASS}. */
+    /** Every signature in the report has {@link Verdict#PASS}. */
     ALL_PASS,
 
     /** At least one signature passed; none failed (some were skipped or had no key). */

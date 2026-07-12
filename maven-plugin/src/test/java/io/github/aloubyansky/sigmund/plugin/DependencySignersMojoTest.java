@@ -2,8 +2,10 @@ package io.github.aloubyansky.sigmund.plugin;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-import io.github.aloubyansky.sigmund.core.SignatureInfo;
-import io.github.aloubyansky.sigmund.core.VerificationResult;
+import io.github.aloubyansky.sigmund.core.OpenPgpVerifyResult;
+import io.github.aloubyansky.sigmund.core.UnverifiedResult;
+import io.github.aloubyansky.sigmund.core.Verdict;
+import io.github.aloubyansky.sigmund.core.VerifyResult;
 import io.github.aloubyansky.sigmund.plugin.SignatureInspector.SignedArtifact;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -15,33 +17,38 @@ class DependencySignersMojoTest {
 
     @Test
     void signedArtifact_v4WithSigner() {
+        VerifyResult vr = new OpenPgpVerifyResult(Verdict.PASS,
+                "User <user@example.com>", "RSA", 4, "ABCD1234", "ABCD1234");
         SignedArtifact signer = new SignedArtifact(
-                "com.example:lib:1.0", "central",
-                new SignatureInfo(4, "ABCD1234", "RSA", "User <user@example.com>", VerificationResult.PASS));
+                "com.example:lib:1.0", "central", vr, null, null);
         assertEquals("com.example:lib:1.0", signer.coordinates());
         assertEquals("central", signer.repoId());
-        assertEquals(4, signer.signatureInfo().version());
-        assertEquals("ABCD1234", signer.signatureInfo().keyId());
-        assertEquals("User <user@example.com>", signer.signatureInfo().signerUserId());
+        assertInstanceOf(OpenPgpVerifyResult.class, signer.verifyResult());
+        OpenPgpVerifyResult opvr = (OpenPgpVerifyResult) signer.verifyResult();
+        assertEquals(4, opvr.version());
+        assertEquals("ABCD1234", opvr.preferredKeyId());
+        assertEquals("User <user@example.com>", opvr.signerDisplayName());
     }
 
     @Test
     void signedArtifact_v6Detected() {
+        VerifyResult vr = new OpenPgpVerifyResult(Verdict.SKIPPED,
+                null, null, 6, null, null);
         SignedArtifact signer = new SignedArtifact(
-                "com.example:lib:1.0", "central",
-                new SignatureInfo(6, null, null, null, VerificationResult.SKIPPED));
-        assertEquals(6, signer.signatureInfo().version());
-        assertNull(signer.signatureInfo().keyId());
-        assertEquals(VerificationResult.SKIPPED, signer.signatureInfo().result());
+                "com.example:lib:1.0", "central", vr, null, null);
+        OpenPgpVerifyResult opvr = (OpenPgpVerifyResult) signer.verifyResult();
+        assertEquals(6, opvr.version());
+        assertNull(opvr.preferredKeyId());
+        assertEquals(Verdict.SKIPPED, signer.verdict());
     }
 
     @Test
     void signedArtifact_noSignature() {
         SignedArtifact signer = new SignedArtifact(
-                "com.example:lib:1.0", null,
-                new SignatureInfo(-1, null, null, null, VerificationResult.SKIPPED));
+                "com.example:lib:1.0", null, Verdict.SKIPPED);
         assertNull(signer.repoId());
-        assertEquals(-1, signer.signatureInfo().version());
+        assertInstanceOf(UnverifiedResult.class, signer.verifyResult());
+        assertEquals(Verdict.SKIPPED, signer.verdict());
     }
 
     // --- ArtifactCoords.toString tests ---
@@ -80,61 +87,52 @@ class DependencySignersMojoTest {
 
         @Test
         void normalUidProducesKebabCaseId() {
-            var sig = new SignatureInfo(4, "KEY1", "RSA",
-                    "John Smith <john@example.com>", VerificationResult.PASS);
-            assertEquals("john-smith", mojo.generateSignerId(sig, 1));
+            assertEquals("john-smith",
+                    mojo.generateSignerId("John Smith <john@example.com>", 1));
         }
 
         @Test
         void uidWithoutEmailBrackets() {
-            var sig = new SignatureInfo(4, "KEY1", "RSA",
-                    "Jane Doe", VerificationResult.PASS);
-            assertEquals("jane-doe", mojo.generateSignerId(sig, 1));
+            assertEquals("jane-doe", mojo.generateSignerId("Jane Doe", 1));
         }
 
         @Test
         void emptyNameFallsBackToCounter() {
-            var sig = new SignatureInfo(4, "KEY1", "RSA",
-                    " <user@example.com>", VerificationResult.PASS);
-            assertEquals("signer-1", mojo.generateSignerId(sig, 1));
+            assertEquals("signer-1", mojo.generateSignerId(" <user@example.com>", 1));
         }
 
         @Test
         void specialCharsOnlyFallsBackToCounter() {
-            var sig = new SignatureInfo(4, "KEY1", "RSA",
-                    "... <user@example.com>", VerificationResult.PASS);
-            assertEquals("signer-2", mojo.generateSignerId(sig, 2));
+            assertEquals("signer-2", mojo.generateSignerId("... <user@example.com>", 2));
         }
 
         @Test
         void nullUidFallsBackToCounter() {
-            var sig = new SignatureInfo(4, "KEY1", "RSA",
-                    null, VerificationResult.PASS);
-            assertEquals("signer-3", mojo.generateSignerId(sig, 3));
+            assertEquals("signer-3", mojo.generateSignerId(null, 3));
         }
 
         @Test
         void collisionProducesUniqueSuffix() {
-            var sig1 = new SignatureInfo(4, "KEY1", "RSA",
-                    "John Smith <john@a.com>", VerificationResult.PASS);
-            var sig2 = new SignatureInfo(4, "KEY2", "RSA",
-                    "John Smith <john@b.com>", VerificationResult.PASS);
+            VerifyResult vr1 = new OpenPgpVerifyResult(Verdict.PASS,
+                    "John Smith <john@a.com>", "RSA", 4, "KEY1", "KEY1");
+            VerifyResult vr2 = new OpenPgpVerifyResult(Verdict.PASS,
+                    "John Smith <john@b.com>", "RSA", 4, "KEY2", "KEY2");
 
             Map<String, DependencySignersMojo.SignerInfo> existingSigners = new LinkedHashMap<>();
             var info1 = new DependencySignersMojo.SignerInfo(
-                    mojo.resolveUniqueSignerId(sig1, 1, existingSigners, Set.of()), sig1);
+                    mojo.resolveUniqueSignerId(vr1, 1, existingSigners, Set.of()), vr1);
             existingSigners.put("KEY1", info1);
 
-            String id2 = mojo.resolveUniqueSignerId(sig2, 2, existingSigners, Set.of());
+            String id2 = mojo.resolveUniqueSignerId(vr2, 2, existingSigners, Set.of());
             assertEquals("john-smith", info1.id);
             assertEquals("john-smith-2", id2);
         }
 
         @Test
         void collisionWithReservedIds() {
-            var sig = new SignatureInfo(4, "KEY1", "RSA",
-                    "Alice <alice@example.com>", VerificationResult.PASS);
-            String id = mojo.resolveUniqueSignerId(sig, 1, new LinkedHashMap<>(), Set.of("alice"));
+            VerifyResult vr = new OpenPgpVerifyResult(Verdict.PASS,
+                    "Alice <alice@example.com>", "RSA", 4, "KEY1", "KEY1");
+            String id = mojo.resolveUniqueSignerId(vr, 1, new LinkedHashMap<>(), Set.of("alice"));
             assertEquals("alice-2", id);
         }
     }

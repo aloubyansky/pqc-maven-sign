@@ -136,7 +136,7 @@ class RoundTripIntegrationTest {
         assertTrue(report.isPass(),
                 "Strict verification (all signatures) should pass");
         for (VerifyResult r : report.files().get(0).results()) {
-            assertEquals(VerificationResult.PASS, r.result(),
+            assertEquals(Verdict.PASS, r.verdict(),
                     "Signature (" + r.algorithm() + ") should be valid");
         }
 
@@ -231,7 +231,7 @@ class RoundTripIntegrationTest {
 
         // Assert: All signatures should fail due to tampering
         for (VerifyResult r : report.files().get(0).results()) {
-            assertEquals(VerificationResult.FAIL, r.result(),
+            assertEquals(Verdict.FAIL, r.verdict(),
                     "Signature (" + r.algorithm() + ") should fail for tampered artifact");
         }
 

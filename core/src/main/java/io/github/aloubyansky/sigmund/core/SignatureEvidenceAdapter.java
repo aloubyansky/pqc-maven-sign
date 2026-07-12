@@ -115,7 +115,7 @@ public class SignatureEvidenceAdapter implements EvidenceProvider {
      * Verifies a single verification unit against the artifact file.
      * <p>
      * Routes the unit to the appropriate tool, performs verification,
-     * attempts key fetching on {@link VerificationResult#NO_KEY}, and wraps
+     * attempts key fetching on {@link Verdict#NO_KEY}, and wraps
      * the result as an {@link EvidenceResult}.
      *
      * @param artifactFile the artifact whose signature is being verified
@@ -125,12 +125,12 @@ public class SignatureEvidenceAdapter implements EvidenceProvider {
     private EvidenceResult verifyUnit(Path artifactFile, VerificationUnit unit) {
         SignatureTool tool = routeUnitToTool(unit);
         if (tool == null) {
-            return new EvidenceResult(VerificationResult.SKIPPED, List.of(), name());
+            return new EvidenceResult(Verdict.SKIPPED, List.of(), name());
         }
 
         VerifyResult result = tool.verify(artifactFile, unit);
 
-        if (result.result() == VerificationResult.NO_KEY) {
+        if (result.verdict() == Verdict.NO_KEY) {
             result = fetchKeyAndRetry(artifactFile, unit, tool, result);
         }
 
@@ -161,7 +161,7 @@ public class SignatureEvidenceAdapter implements EvidenceProvider {
      * @param artifactFile the artifact being verified
      * @param unit the verification unit whose key is missing
      * @param tool the tool to retry verification with
-     * @param originalResult the original {@link VerificationResult#NO_KEY} result
+     * @param originalResult the original {@link Verdict#NO_KEY} result
      * @return the result of re-verification after import, or the original result if fetching failed
      */
     private VerifyResult fetchKeyAndRetry(Path artifactFile, VerificationUnit unit,
@@ -242,6 +242,6 @@ public class SignatureEvidenceAdapter implements EvidenceProvider {
      */
     private EvidenceResult wrapAsEvidence(SignatureTool tool, VerifyResult result) {
         List<Credential> credentials = tool.extractCredentials(result);
-        return new EvidenceResult(result.result(), credentials, name());
+        return new EvidenceResult(result.verdict(), credentials, name());
     }
 }

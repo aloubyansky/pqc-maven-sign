@@ -6,7 +6,7 @@ import java.util.List;
  * The output of verifying a piece of evidence.
  * <p>
  * Carries the verification outcome and the proven credentials so that identity matching
- * is type-agnostic — the trust layer only needs {@link #result()} and
+ * is type-agnostic — the trust layer only needs {@link #verdict()} and
  * {@link #provenCredentials()}, never provider-specific details.
  * <p>
  * Provider-specific details (OpenPGP key IDs, Sigstore log indices) are handled internally
@@ -19,13 +19,13 @@ import java.util.List;
  * <li>A verified Sigstore bundle produces an {@code EmailCredential("alice@example.com")}.</li>
  * </ul>
  *
- * @param result the verification outcome
+ * @param verdict the verification outcome
  * @param provenCredentials the credentials proven by this evidence
  * @param provider the evidence provider name (e.g., {@code "openpgp"}, {@code "sigstore"})
  * @see EvidenceProvider
  * @see TrustResult
  */
-public record EvidenceResult(VerificationResult result, List<Credential> provenCredentials, String provider) {
+public record EvidenceResult(Verdict verdict, List<Credential> provenCredentials, String provider) {
 
     public EvidenceResult {
         provenCredentials = provenCredentials != null ? List.copyOf(provenCredentials) : List.of();

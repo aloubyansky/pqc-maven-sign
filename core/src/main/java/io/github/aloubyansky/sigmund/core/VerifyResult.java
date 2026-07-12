@@ -15,24 +15,25 @@ package io.github.aloubyansky.sigmund.core;
  * @see SignatureTool#verify(java.nio.file.Path, VerificationUnit)
  * @see OpenPgpVerifyResult
  * @see SigstoreVerifyResult
+ * @see UnverifiedResult
  */
 public abstract sealed class VerifyResult
-        permits OpenPgpVerifyResult, SigstoreVerifyResult {
+        permits OpenPgpVerifyResult, SigstoreVerifyResult, UnverifiedResult {
 
-    private final VerificationResult result;
+    private final Verdict verdict;
     private final String signerDisplayName;
     private final String algorithm;
 
     /**
      * Creates a new verify result.
      *
-     * @param result the verification outcome
+     * @param verdict the verification outcome
      * @param signerDisplayName human-readable signer description (UID, email, URI),
      *        or {@code null} if unknown
      * @param algorithm the signing algorithm name, or {@code null} if unknown
      */
-    protected VerifyResult(VerificationResult result, String signerDisplayName, String algorithm) {
-        this.result = result;
+    protected VerifyResult(Verdict verdict, String signerDisplayName, String algorithm) {
+        this.verdict = verdict;
         this.signerDisplayName = signerDisplayName;
         this.algorithm = algorithm;
     }
@@ -40,10 +41,10 @@ public abstract sealed class VerifyResult
     /**
      * Returns the verification outcome.
      *
-     * @return the result (PASS, FAIL, NO_KEY, or SKIPPED)
+     * @return the verdict (PASS, FAIL, NO_KEY, or SKIPPED)
      */
-    public VerificationResult result() {
-        return result;
+    public Verdict verdict() {
+        return verdict;
     }
 
     /**
@@ -63,5 +64,18 @@ public abstract sealed class VerifyResult
      */
     public String algorithm() {
         return algorithm;
+    }
+
+    /**
+     * Returns a format-agnostic identifier for the signer.
+     * <p>
+     * For OpenPGP this is the key fingerprint (or short key ID as fallback);
+     * for Sigstore this is the OIDC subject. Subclasses override to provide
+     * the appropriate value.
+     *
+     * @return the signer identifier, or {@code null} if unknown
+     */
+    public String signerIdentifier() {
+        return null;
     }
 }

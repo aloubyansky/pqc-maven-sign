@@ -1,8 +1,9 @@
 package io.github.aloubyansky.sigmund.plugin;
 
 import io.github.aloubyansky.sigmund.core.GpgRunner;
-import io.github.aloubyansky.sigmund.core.SignatureInfo;
-import io.github.aloubyansky.sigmund.core.VerificationResult;
+import io.github.aloubyansky.sigmund.core.OpenPgpVerifyResult;
+import io.github.aloubyansky.sigmund.core.Verdict;
+import io.github.aloubyansky.sigmund.core.VerifyResult;
 import io.github.aloubyansky.sigmund.plugin.SignatureInspector.SignedArtifact;
 import java.io.File;
 import java.io.IOException;
@@ -92,6 +93,12 @@ public class DependencySignersMojo extends AbstractDependencyMojo {
         }
     }
 
+    private static String profileKey(VerifyResult vr) {
+        int pgpVersion = vr instanceof OpenPgpVerifyResult opvr ? opvr.version() : -1;
+        String id = vr.signerIdentifier();
+        return pgpVersion + ":" + (id != null ? id : "?");
+    }
+
     private void logReport(List<SignedArtifact> results) {
 
         // Group entries by artifact coordinate
@@ -109,21 +116,20 @@ public class DependencySignersMojo extends AbstractDependencyMojo {
             List<SignedArtifact> signers = entry.getValue();
 
             boolean allUnsigned = signers.stream()
-                    .allMatch(s -> s.signatureInfo().result() == VerificationResult.SKIPPED);
+                    .allMatch(s -> s.verdict() == Verdict.SKIPPED);
             if (allUnsigned) {
                 unsignedCoords.add(coords);
                 continue;
             }
 
-            String profileKey = signers.stream()
-                    .filter(s -> s.signatureInfo().result() != VerificationResult.SKIPPED)
-                    .map(s -> s.signatureInfo().version() + ":"
-                            + (s.signatureInfo().keyId() != null ? s.signatureInfo().keyId() : "?"))
+            String profile = signers.stream()
+                    .filter(s -> s.verdict() != Verdict.SKIPPED)
+                    .map(s -> profileKey(s.verifyResult()))
                     .sorted()
                     .distinct()
                     .collect(Collectors.joining("|"));
 
-            profileToCoords.computeIfAbsent(profileKey, k -> new ArrayList<>()).add(coords);
+            profileToCoords.computeIfAbsent(profile, k -> new ArrayList<>()).add(coords);
         }
 
         // Sort artifacts within each group alphabetically
@@ -158,45 +164,35 @@ public class DependencySignersMojo extends AbstractDependencyMojo {
 
             List<String> coordsList = groupEntry.getValue();
 
-            // Aggregate best key info across all artifacts in this group
-            Map<String, SignatureInfo> keyInfos = new HashMap<>();
+            // Pick the richest VerifyResult per key (prefer one with a known signer)
+            Map<String, VerifyResult> bestPerKey = new HashMap<>();
             for (String coords : coordsList) {
                 for (SignedArtifact as : byArtifact.get(coords)) {
-                    SignatureInfo sig = as.signatureInfo();
-                    if (sig.result() == VerificationResult.SKIPPED) {
+                    if (as.verdict() == Verdict.SKIPPED) {
                         continue;
                     }
-                    String k = sig.version() + ":"
-                            + (sig.keyId() != null ? sig.keyId() : "?");
-                    keyInfos.merge(k, sig, (existing, incoming) -> new SignatureInfo(
-                            existing.version(),
-                            existing.keyId() != null ? existing.keyId() : incoming.keyId(),
-                            existing.algorithm() != null ? existing.algorithm() : incoming.algorithm(),
-                            existing.signerUserId() != null
-                                    ? existing.signerUserId()
-                                    : incoming.signerUserId(),
-                            existing.result() == VerificationResult.PASS
-                                    ? existing.result()
-                                    : incoming.result()));
+                    bestPerKey.merge(profileKey(as.verifyResult()), as.verifyResult(),
+                            (existing, incoming) -> existing.signerDisplayName() != null ? existing : incoming);
                 }
             }
 
-            // Sort key headers by version then keyId
-            List<SignatureInfo> sortedKeys = keyInfos.entrySet().stream()
+            // Sort key headers by profile key
+            List<VerifyResult> sortedKeys = bestPerKey.entrySet().stream()
                     .sorted(Map.Entry.comparingByKey())
                     .map(Map.Entry::getValue)
                     .toList();
 
             boolean groupHasIssue = sortedKeys.stream()
-                    .noneMatch(sig -> sig.signerUserId() != null);
+                    .noneMatch(vr -> vr.signerDisplayName() != null);
 
             // Print per-key signer + key lines
-            for (SignatureInfo sig : sortedKeys) {
-                String ver = SignatureInspector.versionLabel(sig.version());
-                String keyId = sig.keyId() != null ? sig.keyId() : "-";
-                boolean verified = sig.signerUserId() != null;
+            for (VerifyResult vr : sortedKeys) {
+                int pgpVersion = vr instanceof OpenPgpVerifyResult opvr ? opvr.version() : -1;
+                String ver = SignatureInspector.versionLabel(pgpVersion);
+                String keyId = vr.signerIdentifier() != null ? vr.signerIdentifier() : "-";
+                boolean verified = vr.signerDisplayName() != null;
                 if (verified) {
-                    getLog().info("Signer: " + sig.signerUserId());
+                    getLog().info("Signer: " + vr.signerDisplayName());
                     getLog().info("   " + ver + ": " + keyId);
                 } else {
                     getLog().warn("Signer: NOT VERIFIED");
@@ -207,7 +203,7 @@ public class DependencySignersMojo extends AbstractDependencyMojo {
             // Print artifacts
             for (String coords : coordsList) {
                 boolean hasFail = byArtifact.get(coords).stream()
-                        .anyMatch(as -> as.signatureInfo().result() == VerificationResult.FAIL);
+                        .anyMatch(as -> as.verdict() == Verdict.FAIL);
                 String line = "     " + coords;
                 if (hasFail) {
                     getLog().error(line + "   (BAD SIGNATURE)");
@@ -233,26 +229,28 @@ public class DependencySignersMojo extends AbstractDependencyMojo {
         // Summary statistics
         long totalArtifacts = results.stream().map(SignedArtifact::coordinates).distinct().count();
         Map<Integer, Long> versionCounts = results.stream()
-                .filter(r -> r.signatureInfo().version() > 0)
-                .collect(Collectors.groupingBy(r -> r.signatureInfo().version(), Collectors.counting()));
+                .filter(r -> r.verifyResult() instanceof OpenPgpVerifyResult)
+                .collect(Collectors.groupingBy(
+                        r -> ((OpenPgpVerifyResult) r.verifyResult()).version(),
+                        Collectors.counting()));
         long uniqueKeys = results.stream()
-                .map(r -> r.signatureInfo().keyId())
+                .map(r -> r.verifyResult().signerIdentifier())
                 .filter(k -> k != null)
                 .distinct()
                 .count();
         long untrusted = results.stream()
-                .filter(r -> r.signatureInfo().result() == VerificationResult.SKIPPED
-                        || r.signatureInfo().result() == VerificationResult.FAIL)
+                .filter(r -> r.verdict() == Verdict.SKIPPED
+                        || r.verdict() == Verdict.FAIL)
                 .map(SignedArtifact::coordinates)
                 .distinct()
                 .count();
         Set<String> identifiedCoords = results.stream()
-                .filter(r -> r.signatureInfo().signerUserId() != null)
+                .filter(r -> r.verifyResult().signerDisplayName() != null)
                 .map(SignedArtifact::coordinates)
                 .collect(Collectors.toSet());
         long unidentified = results.stream()
-                .filter(r -> r.signatureInfo().result() != VerificationResult.SKIPPED
-                        && r.signatureInfo().result() != VerificationResult.FAIL)
+                .filter(r -> r.verdict() != Verdict.SKIPPED
+                        && r.verdict() != Verdict.FAIL)
                 .map(SignedArtifact::coordinates)
                 .distinct()
                 .filter(c -> !identifiedCoords.contains(c))
@@ -287,8 +285,8 @@ public class DependencySignersMojo extends AbstractDependencyMojo {
             Map<String, List<SignedArtifact>> byArtifact) {
         for (String coords : coordsList) {
             for (SignedArtifact as : byArtifact.get(coords)) {
-                if (as.signatureInfo().signerUserId() != null) {
-                    return as.signatureInfo().signerUserId();
+                if (as.verifyResult().signerDisplayName() != null) {
+                    return as.verifyResult().signerDisplayName();
                 }
             }
         }
@@ -335,7 +333,7 @@ public class DependencySignersMojo extends AbstractDependencyMojo {
             List<SignedArtifact> sigEntries = entry.getValue();
 
             boolean allUnsigned = sigEntries.stream()
-                    .allMatch(s -> s.signatureInfo().result() == VerificationResult.SKIPPED);
+                    .allMatch(s -> s.verdict() == Verdict.SKIPPED);
             if (allUnsigned) {
                 unsignedCoords.add(stripVersion(coords));
                 continue;
@@ -343,18 +341,20 @@ public class DependencySignersMojo extends AbstractDependencyMojo {
 
             String strippedCoords = stripVersion(coords);
             for (SignedArtifact sa : sigEntries) {
-                SignatureInfo sig = sa.signatureInfo();
-                if (sig.result() == VerificationResult.SKIPPED || sig.keyId() == null) {
+                VerifyResult vr = sa.verifyResult();
+                if (sa.verdict() == Verdict.SKIPPED
+                        || vr.signerIdentifier() == null) {
                     continue;
                 }
-                SignerInfo info = signersByKey.get(sig.keyId());
+                String id = vr.signerIdentifier();
+                SignerInfo info = signersByKey.get(id);
                 if (info == null) {
                     signerCounter++;
                     info = new SignerInfo(
-                            resolveUniqueSignerId(sig, signerCounter, signersByKey, Set.of()), sig);
-                    signersByKey.put(sig.keyId(), info);
+                            resolveUniqueSignerId(vr, signerCounter, signersByKey, Set.of()), vr);
+                    signersByKey.put(id, info);
                 } else {
-                    info.merge(sig);
+                    info.merge(vr);
                 }
                 artifactSigners.computeIfAbsent(strippedCoords, k -> new LinkedHashSet<>())
                         .add(info.id);
@@ -433,7 +433,7 @@ public class DependencySignersMojo extends AbstractDependencyMojo {
             }
 
             boolean allUnsigned = sigEntries.stream()
-                    .allMatch(s -> s.signatureInfo().result() == VerificationResult.SKIPPED);
+                    .allMatch(s -> s.verdict() == Verdict.SKIPPED);
             if (allUnsigned) {
                 newUnsigned.add(stripVersion(coords));
                 continue;
@@ -441,19 +441,21 @@ public class DependencySignersMojo extends AbstractDependencyMojo {
 
             String strippedCoords = stripVersion(coords);
             for (SignedArtifact sa : sigEntries) {
-                SignatureInfo sig = sa.signatureInfo();
-                if (sig.result() == VerificationResult.SKIPPED || sig.keyId() == null) {
+                VerifyResult vr = sa.verifyResult();
+                if (sa.verdict() == Verdict.SKIPPED
+                        || vr.signerIdentifier() == null) {
                     continue;
                 }
-                SignerInfo info = newSigners.get(sig.keyId());
+                String id = vr.signerIdentifier();
+                SignerInfo info = newSigners.get(id);
                 if (info == null) {
                     signerCounter++;
                     info = new SignerInfo(
-                            resolveUniqueSignerId(sig, signerCounter, newSigners, existing.signers().keySet()),
-                            sig);
-                    newSigners.put(sig.keyId(), info);
+                            resolveUniqueSignerId(vr, signerCounter, newSigners, existing.signers().keySet()),
+                            vr);
+                    newSigners.put(id, info);
                 } else {
-                    info.merge(sig);
+                    info.merge(vr);
                 }
                 newArtifactSigners.computeIfAbsent(strippedCoords, k -> new LinkedHashSet<>())
                         .add(info.id);
@@ -657,15 +659,11 @@ public class DependencySignersMojo extends AbstractDependencyMojo {
         unsignedCoords.stream().distinct().sorted().forEach(c -> w.println("  - " + c));
     }
 
-    /**
-     * Generates a signer ID from the signer's user ID, or falls back to a
-     * numbered identifier.
-     */
-    String generateSignerId(SignatureInfo sig, int counter) {
-        if (sig.signerUserId() != null) {
-            String uid = sig.signerUserId();
-            int angleBracket = uid.indexOf('<');
-            String name = (angleBracket > 0 ? uid.substring(0, angleBracket) : uid).trim();
+    String generateSignerId(String signerDisplayName, int counter) {
+        if (signerDisplayName != null) {
+            int angleBracket = signerDisplayName.indexOf('<');
+            String name = (angleBracket > 0 ? signerDisplayName.substring(0, angleBracket)
+                    : signerDisplayName).trim();
             String id = name.toLowerCase().replaceAll("[^a-z0-9]+", "-")
                     .replaceAll("^-|-$", "");
             if (!id.isEmpty()) {
@@ -675,9 +673,9 @@ public class DependencySignersMojo extends AbstractDependencyMojo {
         return "signer-" + counter;
     }
 
-    String resolveUniqueSignerId(SignatureInfo sig, int counter,
+    String resolveUniqueSignerId(VerifyResult vr, int counter,
             Map<String, SignerInfo> existingSigners, Set<String> reservedIds) {
-        String base = generateSignerId(sig, counter);
+        String base = generateSignerId(vr.signerDisplayName(), counter);
         String candidate = base;
         int suffix = 2;
         Set<String> taken = new java.util.HashSet<>(reservedIds);
@@ -688,31 +686,34 @@ public class DependencySignersMojo extends AbstractDependencyMojo {
         return candidate;
     }
 
-    /**
-     * Mutable holder for signer information accumulated across multiple signatures.
-     */
     static class SignerInfo {
         final String id;
         String gpgKey;
         String pqcKey;
         String email;
 
-        SignerInfo(String id, SignatureInfo sig) {
+        SignerInfo(String id, VerifyResult vr) {
             this.id = id;
-            this.gpgKey = sig.version() < 6 ? sig.keyId() : null;
-            this.pqcKey = sig.version() >= 6 ? sig.keyId() : null;
-            this.email = GpgRunner.extractEmail(sig.signerUserId());
+            if (vr instanceof OpenPgpVerifyResult opvr) {
+                String keyId = opvr.preferredKeyId();
+                this.gpgKey = opvr.version() < 6 ? keyId : null;
+                this.pqcKey = opvr.version() >= 6 ? keyId : null;
+            }
+            this.email = GpgRunner.extractEmail(vr.signerDisplayName());
         }
 
-        void merge(SignatureInfo sig) {
-            if (email == null && sig.signerUserId() != null) {
-                email = GpgRunner.extractEmail(sig.signerUserId());
+        void merge(VerifyResult vr) {
+            if (email == null && vr.signerDisplayName() != null) {
+                email = GpgRunner.extractEmail(vr.signerDisplayName());
             }
-            if (gpgKey == null && sig.version() < 6 && sig.keyId() != null) {
-                gpgKey = sig.keyId();
-            }
-            if (pqcKey == null && sig.version() >= 6 && sig.keyId() != null) {
-                pqcKey = sig.keyId();
+            if (vr instanceof OpenPgpVerifyResult opvr) {
+                String keyId = opvr.preferredKeyId();
+                if (gpgKey == null && opvr.version() < 6 && keyId != null) {
+                    gpgKey = keyId;
+                }
+                if (pqcKey == null && opvr.version() >= 6 && keyId != null) {
+                    pqcKey = keyId;
+                }
             }
         }
     }
