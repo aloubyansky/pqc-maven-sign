@@ -137,6 +137,58 @@ class DependencySignersMojoTest {
         }
     }
 
+    @Nested
+    class SignerInfoTests {
+
+        @Test
+        void v4KeyClassifiedAsPgp4() {
+            VerifyResult vr = new OpenPgpVerifyResult(Verdict.PASS,
+                    "User <user@example.com>", "RSA", 4, null, "FP4");
+            var info = new DependencySignersMojo.SignerInfo("test", vr);
+            assertEquals("FP4", info.pgp4Key);
+            assertNull(info.pgp6Key);
+        }
+
+        @Test
+        void v6KeyClassifiedAsPgp6() {
+            VerifyResult vr = new OpenPgpVerifyResult(Verdict.PASS,
+                    "User <user@example.com>", "ML-DSA-87+Ed448", 6, null, "FP6");
+            var info = new DependencySignersMojo.SignerInfo("test", vr);
+            assertNull(info.pgp4Key);
+            assertEquals("FP6", info.pgp6Key);
+        }
+
+        @Test
+        void mergeAccumulatesBothKeys() {
+            VerifyResult vr4 = new OpenPgpVerifyResult(Verdict.PASS,
+                    "User <user@example.com>", "RSA", 4, null, "FP4");
+            VerifyResult vr6 = new OpenPgpVerifyResult(Verdict.PASS,
+                    null, "ML-DSA-87+Ed448", 6, null, "FP6");
+            var info = new DependencySignersMojo.SignerInfo("test", vr4);
+            info.merge(vr6);
+            assertEquals("FP4", info.pgp4Key);
+            assertEquals("FP6", info.pgp6Key);
+            assertEquals("user@example.com", info.email);
+        }
+    }
+
+    @Nested
+    class SignedArtifactEdgeCases {
+
+        @Test
+        void unverifiedWithPassThrows() {
+            assertThrows(IllegalArgumentException.class,
+                    () -> new SignedArtifact("coords", null, Verdict.PASS));
+        }
+
+        @Test
+        void unverifiedWithFail() {
+            var sa = new SignedArtifact("coords", "repo", Verdict.FAIL);
+            assertEquals(Verdict.FAIL, sa.verdict());
+            assertInstanceOf(io.github.aloubyansky.sigmund.core.UnverifiedResult.class, sa.verifyResult());
+        }
+    }
+
     private ArtifactCoords createArtifact(String groupId, String artifactId, String version) {
         return new ArtifactCoords(groupId, artifactId, "", "jar", version);
     }

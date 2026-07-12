@@ -40,6 +40,21 @@ public final class Algorithms {
     }
 
     /**
+     * Returns a human-readable label for an OpenPGP signature packet version.
+     *
+     * @param pgpVersion the signature packet version (4, 6, etc.)
+     * @return {@code "PGP4"} for v4, {@code "PGP6"} for v6, {@code "PGPN"} for
+     *         other positive versions, or {@code "-"} for non-positive values
+     */
+    public static String versionLabel(int pgpVersion) {
+        return switch (pgpVersion) {
+            case 4 -> "PGP4";
+            case 6 -> "PGP6";
+            default -> pgpVersion > 0 ? "PGP" + pgpVersion : "-";
+        };
+    }
+
+    /**
      * Returns the human-readable name for an OpenPGP public-key algorithm ID.
      *
      * @param algorithmId the IANA-registered algorithm ID

@@ -1,5 +1,6 @@
 package io.github.aloubyansky.sigmund.plugin;
 
+import io.github.aloubyansky.sigmund.core.Algorithms;
 import io.github.aloubyansky.sigmund.core.GpgRunner;
 import io.github.aloubyansky.sigmund.core.OpenPgpVerifyResult;
 import io.github.aloubyansky.sigmund.core.Verdict;
@@ -16,7 +17,9 @@ import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import org.apache.maven.plugin.MojoExecutionException;
 import org.apache.maven.plugins.annotations.LifecyclePhase;
@@ -190,13 +193,14 @@ public class DependencySignersMojo extends AbstractDependencyMojo {
                 int pgpVersion = vr instanceof OpenPgpVerifyResult opvr ? opvr.version() : -1;
                 String ver = SignatureInspector.versionLabel(pgpVersion);
                 String keyId = vr.signerIdentifier() != null ? vr.signerIdentifier() : "-";
+                String keyLine = "   " + ver + ": " + keyId + formatAlgorithm(vr);
                 boolean verified = vr.signerDisplayName() != null;
                 if (verified) {
                     getLog().info("Signer: " + vr.signerDisplayName());
-                    getLog().info("   " + ver + ": " + keyId);
+                    getLog().info(keyLine);
                 } else {
                     getLog().warn("Signer: NOT VERIFIED");
-                    getLog().warn("   " + ver + ": " + keyId);
+                    getLog().warn(keyLine);
                 }
             }
 
@@ -235,7 +239,7 @@ public class DependencySignersMojo extends AbstractDependencyMojo {
                         Collectors.counting()));
         long uniqueKeys = results.stream()
                 .map(r -> r.verifyResult().signerIdentifier())
-                .filter(k -> k != null)
+                .filter(Objects::nonNull)
                 .distinct()
                 .count();
         long untrusted = results.stream()
@@ -279,6 +283,22 @@ public class DependencySignersMojo extends AbstractDependencyMojo {
                         .append(SignatureInspector.versionLabel(e.getKey())).append(" signature(s)"));
         summary.append(", ").append(uniqueKeys).append(" unique key(s)");
         getLog().info("Summary: " + summary);
+
+        Set<String> pqCoords = results.stream()
+                .filter(r -> Algorithms.isPqcAlgorithmName(r.verifyResult().algorithm()))
+                .map(SignedArtifact::coordinates)
+                .collect(Collectors.toSet());
+        getLog().info("PQ coverage: " + pqCoords.size() + "/" + totalArtifacts
+                + " dependencies have a post-quantum signature");
+    }
+
+    private static String formatAlgorithm(VerifyResult vr) {
+        String algo = vr.algorithm();
+        if (algo == null) {
+            return "";
+        }
+        boolean pq = Algorithms.isPqcAlgorithmName(algo);
+        return pq ? " (" + algo + ", PQ)" : " (" + algo + ")";
     }
 
     private static String firstSigner(List<String> coordsList,
@@ -629,9 +649,8 @@ public class DependencySignersMojo extends AbstractDependencyMojo {
         w.println();
     }
 
-    private static void appendSignerYaml(SignerInfo info, String indent,
-            java.util.function.Consumer<String> out) {
-        boolean hasFingerprint = info.gpgKey != null || info.pqcKey != null;
+    private static void appendSignerYaml(SignerInfo info, String indent, Consumer<String> out) {
+        boolean hasFingerprint = info.pgp4Key != null || info.pgp6Key != null;
         if (!hasFingerprint && info.email == null) {
             return;
         }
@@ -640,11 +659,11 @@ public class DependencySignersMojo extends AbstractDependencyMojo {
             return;
         }
         out.accept(indent + info.id + ":");
-        if (info.gpgKey != null) {
-            out.accept(indent + "  gpg: \"" + info.gpgKey + "\"");
+        if (info.pgp4Key != null) {
+            out.accept(indent + "  pgp4: \"" + info.pgp4Key + "\"");
         }
-        if (info.pqcKey != null) {
-            out.accept(indent + "  pqc: \"" + info.pqcKey + "\"");
+        if (info.pgp6Key != null) {
+            out.accept(indent + "  pgp6: \"" + info.pgp6Key + "\"");
         }
         if (info.email != null) {
             out.accept(indent + "  email: \"" + info.email + "\"");
@@ -688,16 +707,14 @@ public class DependencySignersMojo extends AbstractDependencyMojo {
 
     static class SignerInfo {
         final String id;
-        String gpgKey;
-        String pqcKey;
+        String pgp4Key;
+        String pgp6Key;
         String email;
 
         SignerInfo(String id, VerifyResult vr) {
             this.id = id;
             if (vr instanceof OpenPgpVerifyResult opvr) {
-                String keyId = opvr.preferredKeyId();
-                this.gpgKey = opvr.version() < 6 ? keyId : null;
-                this.pqcKey = opvr.version() >= 6 ? keyId : null;
+                classifyKey(opvr);
             }
             this.email = GpgRunner.extractEmail(vr.signerDisplayName());
         }
@@ -707,13 +724,19 @@ public class DependencySignersMojo extends AbstractDependencyMojo {
                 email = GpgRunner.extractEmail(vr.signerDisplayName());
             }
             if (vr instanceof OpenPgpVerifyResult opvr) {
-                String keyId = opvr.preferredKeyId();
-                if (gpgKey == null && opvr.version() < 6 && keyId != null) {
-                    gpgKey = keyId;
-                }
-                if (pqcKey == null && opvr.version() >= 6 && keyId != null) {
-                    pqcKey = keyId;
-                }
+                classifyKey(opvr);
+            }
+        }
+
+        private void classifyKey(OpenPgpVerifyResult opvr) {
+            String keyId = opvr.preferredKeyId();
+            if (keyId == null) {
+                return;
+            }
+            if (opvr.version() >= 6 && pgp6Key == null) {
+                pgp6Key = keyId;
+            } else if (opvr.version() < 6 && pgp4Key == null) {
+                pgp4Key = keyId;
             }
         }
     }

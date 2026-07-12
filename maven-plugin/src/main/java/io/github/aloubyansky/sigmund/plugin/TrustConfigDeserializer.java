@@ -115,18 +115,18 @@ class TrustConfigDeserializer extends StdDeserializer<TrustConfig> {
             throw new IllegalArgumentException(
                     "Member entry in signer '" + signerId + "' must be an object");
         }
-        String gpg = textOrDefault(node, "gpg", null);
-        String pqc = textOrDefault(node, "pqc", null);
+        String pgp4 = textOrDefault(node, "pgp4", null);
+        String pgp6 = textOrDefault(node, "pgp6", null);
         String email = textOrDefault(node, "email", null);
-        if (gpg == null && pqc == null && email == null) {
+        if (pgp4 == null && pgp6 == null && email == null) {
             throw new IllegalArgumentException(
-                    "Member entry in signer '" + signerId + "' must have at least one of: gpg, pqc, email");
+                    "Member entry in signer '" + signerId + "' must have at least one of: pgp4, pgp6, email");
         }
         if (email != null && email.isBlank()) {
             throw new IllegalArgumentException(
                     "Member entry in signer '" + signerId + "' has an empty email");
         }
-        return new TrustConfig.Member(gpg, pqc, email);
+        return new TrustConfig.Member(pgp4, pgp6, email);
     }
 
     private Map<String, List<String>> parseArtifacts(JsonNode node) {

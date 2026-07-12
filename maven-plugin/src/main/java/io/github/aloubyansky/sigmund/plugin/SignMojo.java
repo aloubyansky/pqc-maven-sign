@@ -1,17 +1,17 @@
 package io.github.aloubyansky.sigmund.plugin;
 
-import io.github.aloubyansky.sigmund.core.GpgRunner;
 import io.github.aloubyansky.sigmund.core.Sigmund;
 import io.github.aloubyansky.sigmund.core.Signer;
 import io.github.aloubyansky.sigmund.core.SigningOutput;
-import io.github.aloubyansky.sigmund.core.SqRunner;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import javax.inject.Inject;
 import org.apache.maven.artifact.Artifact;
 import org.apache.maven.plugin.AbstractMojo;
@@ -88,7 +88,7 @@ public class SignMojo extends AbstractMojo {
      * home directory specified by {@link #sqHome}.
      *
      */
-    @Parameter(property = "sigmund.fingerprint", required = true)
+    @Parameter(property = "sigmund.fingerprint")
     private String pqcFingerprint;
 
     /**
@@ -99,6 +99,12 @@ public class SignMojo extends AbstractMojo {
      */
     @Parameter(property = "sigmund.sqHome")
     private File sqHome;
+
+    /**
+     * When {@code true}, skips the signing goal entirely.
+     */
+    @Parameter(property = "sigmund.skip", defaultValue = "false")
+    private boolean skip;
 
     /**
      * Executes the signing process for all project artifacts.
@@ -116,6 +122,14 @@ public class SignMojo extends AbstractMojo {
      */
     @Override
     public void execute() throws MojoExecutionException {
+        if (skip) {
+            getLog().info("Skipping signing");
+            return;
+        }
+        if (pqcFingerprint == null || pqcFingerprint.isBlank()) {
+            throw new MojoExecutionException(
+                    "sigmund.fingerprint is required for hybrid signing");
+        }
         getLog().info("Starting hybrid signing process...");
 
         Signer signer = createSigner();
@@ -132,12 +146,19 @@ public class SignMojo extends AbstractMojo {
 
     private Signer createSigner() throws MojoExecutionException {
         try {
-            Path sequoiaHome = SequoiaHomeResolver.resolve(sqHome);
-            GpgRunner gpg = new GpgRunner(gpgKeyName);
-            SqRunner sq = new SqRunner("sq", sequoiaHome, pqcFingerprint);
+            Map<String, String> gpgSettings = new HashMap<>();
+            if (gpgKeyName != null) {
+                gpgSettings.put("key-name", gpgKeyName);
+            }
+            Map<String, String> sqSettings = new HashMap<>(
+                    SequoiaHomeResolver.toolOverrides(sqHome)
+                            .getOrDefault("sq", Map.of()));
+            if (pqcFingerprint != null) {
+                sqSettings.put("signing-fingerprint", pqcFingerprint);
+            }
             Sigmund sigmund = Sigmund.builder()
-                    .addTool(gpg)
-                    .addTool(sq)
+                    .addSigningTool("gpg", gpgSettings)
+                    .addSigningTool("sq", sqSettings)
                     .build();
             return sigmund.signer();
         } catch (Exception e) {

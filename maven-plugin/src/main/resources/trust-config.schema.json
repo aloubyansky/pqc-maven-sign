@@ -82,16 +82,16 @@
     },
     "signerShort": {
       "type": "object",
-      "description": "Short form: a single-key signer with gpg/pqc fingerprint and/or email directly on the object.",
+      "description": "Short form: a single-key signer with pgp4/pgp6 fingerprint and/or email directly on the object.",
       "properties": {
-        "gpg": {
+        "pgp4": {
           "type": "string",
-          "description": "GPG key fingerprint (hex, minimum 16 characters).",
+          "description": "PGP4 key fingerprint (hex, minimum 16 characters).",
           "pattern": "^[0-9A-Fa-f]{16,}$"
         },
-        "pqc": {
+        "pgp6": {
           "type": "string",
-          "description": "PQC key fingerprint (hex).",
+          "description": "PGP6 key fingerprint (hex).",
           "pattern": "^[0-9A-Fa-f]+$"
         },
         "email": {
@@ -100,8 +100,8 @@
         }
       },
       "anyOf": [
-        { "required": ["gpg"] },
-        { "required": ["pqc"] },
+        { "required": ["pgp4"] },
+        { "required": ["pgp6"] },
         { "required": ["email"] }
       ],
       "not": {
@@ -133,14 +133,14 @@
       "type": "object",
       "description": "A single signer credential within a signer group.",
       "properties": {
-        "gpg": {
+        "pgp4": {
           "type": "string",
-          "description": "GPG key fingerprint (hex, minimum 16 characters).",
+          "description": "PGP4 key fingerprint (hex, minimum 16 characters).",
           "pattern": "^[0-9A-Fa-f]{16,}$"
         },
-        "pqc": {
+        "pgp6": {
           "type": "string",
-          "description": "PQC key fingerprint (hex).",
+          "description": "PGP6 key fingerprint (hex).",
           "pattern": "^[0-9A-Fa-f]+$"
         },
         "email": {
@@ -149,8 +149,8 @@
         }
       },
       "anyOf": [
-        { "required": ["gpg"] },
-        { "required": ["pqc"] },
+        { "required": ["pgp4"] },
+        { "required": ["pgp6"] },
         { "required": ["email"] }
       ],
       "additionalProperties": false

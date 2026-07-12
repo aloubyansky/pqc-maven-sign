@@ -91,4 +91,34 @@ class AlgorithmsTest {
             assertFalse(Algorithms.isPqcAlgorithmName(null));
         }
     }
+
+    @Nested
+    class VersionLabel {
+
+        @Test
+        void v4() {
+            assertEquals("PGP4", Algorithms.versionLabel(4));
+        }
+
+        @Test
+        void v6() {
+            assertEquals("PGP6", Algorithms.versionLabel(6));
+        }
+
+        @Test
+        void otherPositive() {
+            assertEquals("PGP3", Algorithms.versionLabel(3));
+            assertEquals("PGP5", Algorithms.versionLabel(5));
+        }
+
+        @Test
+        void zeroReturnsDash() {
+            assertEquals("-", Algorithms.versionLabel(0));
+        }
+
+        @Test
+        void negativeReturnsDash() {
+            assertEquals("-", Algorithms.versionLabel(-1));
+        }
+    }
 }

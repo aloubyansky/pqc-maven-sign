@@ -1,11 +1,11 @@
 package io.github.aloubyansky.sigmund.plugin;
 
-import io.github.aloubyansky.sigmund.core.GpgRunner;
+import io.github.aloubyansky.sigmund.core.DiscoveryConfig;
 import io.github.aloubyansky.sigmund.core.Sigmund;
 import io.github.aloubyansky.sigmund.core.SignatureVerificationReport;
-import io.github.aloubyansky.sigmund.core.SqRunner;
 import java.io.File;
-import java.nio.file.Path;
+import java.util.List;
+import java.util.Map;
 import org.apache.maven.plugin.AbstractMojo;
 import org.apache.maven.plugin.MojoExecutionException;
 import org.apache.maven.plugins.annotations.Mojo;
@@ -61,15 +61,11 @@ public class VerifyArtifactMojo extends AbstractMojo {
 
     private Sigmund createSigmund() throws MojoExecutionException {
         try {
-            Sigmund.Builder builder = Sigmund.builder()
-                    .addTool(new GpgRunner());
-            if (SqRunner.isToolAvailable()) {
-                Path sqHomePath = SequoiaHomeResolver.resolve(sqHome);
-                builder.addTool(new SqRunner(sqHomePath));
-            } else {
-                getLog().warn("Sequoia (sq) not found - PQC verification will be skipped");
-            }
-            return builder.build();
+            Map<String, Map<String, String>> toolOverrides = SequoiaHomeResolver.toolOverrides(sqHome);
+            return Sigmund.builder()
+                    .discover()
+                    .discoveryConfig(new DiscoveryConfig(true, false, List.of(), toolOverrides))
+                    .build();
         } catch (Exception e) {
             throw new MojoExecutionException("Failed to create verifier", e);
         }

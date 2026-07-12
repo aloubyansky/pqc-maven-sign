@@ -1,11 +1,10 @@
 package io.github.aloubyansky.sigmund.plugin;
 
+import io.github.aloubyansky.sigmund.core.DiscoveryConfig;
 import io.github.aloubyansky.sigmund.core.FileSignatureReport;
-import io.github.aloubyansky.sigmund.core.GpgRunner;
 import io.github.aloubyansky.sigmund.core.KeyImporter;
 import io.github.aloubyansky.sigmund.core.Sigmund;
 import io.github.aloubyansky.sigmund.core.SignatureVerificationReport;
-import io.github.aloubyansky.sigmund.core.SqRunner;
 import io.github.aloubyansky.sigmund.core.UnverifiedResult;
 import io.github.aloubyansky.sigmund.core.Verdict;
 import io.github.aloubyansky.sigmund.core.VerifyResult;
@@ -15,6 +14,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import org.apache.maven.plugin.MojoExecutionException;
 import org.apache.maven.plugin.logging.Log;
@@ -97,25 +97,18 @@ class SignatureInspector {
 
         SignatureInspector build() throws MojoExecutionException {
             if (sigmund == null) {
-                Sigmund.Builder sb = Sigmund.builder()
-                        .addTool(new GpgRunner());
-                if (SqRunner.isToolAvailable()) {
-                    sb.addTool(new SqRunner(SequoiaHomeResolver.resolve(sqHome)));
-                } else if (log != null) {
-                    log.debug("Sequoia (sq) not found - PQC signer info will not be available");
-                }
-                sigmund = sb.build();
+                Map<String, Map<String, String>> overrides = SequoiaHomeResolver.toolOverrides(sqHome);
+                sigmund = Sigmund.builder()
+                        .discover()
+                        .discoveryConfig(new DiscoveryConfig(true, false, List.of(), overrides))
+                        .build();
             }
             return new SignatureInspector(this);
         }
     }
 
     static String versionLabel(int version) {
-        return switch (version) {
-            case 4 -> "GPG";
-            case 6 -> "PQC";
-            default -> version > 0 ? "OpenPGP v" + version : "-";
-        };
+        return io.github.aloubyansky.sigmund.core.Algorithms.versionLabel(version);
     }
 
     List<SignedArtifact> inspectAll(Collection<ArtifactCoords> artifacts) {

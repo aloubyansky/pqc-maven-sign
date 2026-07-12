@@ -18,20 +18,14 @@ import java.util.Map;
  */
 class TrustConfigAdapter {
 
-    private final Map<String, SignerIdentity> signerIdentities;
     private final TrustPolicy trustPolicy;
 
     TrustConfigAdapter(TrustConfig config, TrustConfig.Settings settings) {
-        this.signerIdentities = convertSigners(config);
-        this.trustPolicy = buildPolicy(config, settings, signerIdentities);
+        this.trustPolicy = buildPolicy(config, settings, convertSigners(config));
     }
 
     TrustPolicy trustPolicy() {
         return trustPolicy;
-    }
-
-    Map<String, SignerIdentity> signerIdentities() {
-        return signerIdentities;
     }
 
     private static Map<String, SignerIdentity> convertSigners(TrustConfig config) {
@@ -47,11 +41,11 @@ class TrustConfigAdapter {
     private static SignerIdentity toSignerIdentity(String ref, TrustConfig.Signer signer) {
         List<Credential> credentials = new ArrayList<>();
         for (TrustConfig.Member member : signer.members()) {
-            if (member.gpg() != null) {
-                credentials.add(new FingerprintCredential(Credential.TYPE_OPENPGP_V4, member.gpg()));
+            if (member.pgp4() != null) {
+                credentials.add(new FingerprintCredential(Credential.TYPE_OPENPGP_V4, member.pgp4()));
             }
-            if (member.pqc() != null) {
-                credentials.add(new FingerprintCredential(Credential.TYPE_OPENPGP_V6, member.pqc()));
+            if (member.pgp6() != null) {
+                credentials.add(new FingerprintCredential(Credential.TYPE_OPENPGP_V6, member.pgp6()));
             }
             if (member.email() != null) {
                 credentials.add(new EmailCredential(member.email()));
@@ -70,7 +64,7 @@ class TrustConfigAdapter {
             String key = entry.getKey();
             List<String> signerRefs = entry.getValue();
 
-            List<SignerIdentity> signers = new ArrayList<>();
+            List<SignerIdentity> signers = new ArrayList<>(signerRefs.size());
             for (String ref : signerRefs) {
                 SignerIdentity identity = signerIdentities.get(ref);
                 if (identity != null) {
@@ -93,7 +87,7 @@ class TrustConfigAdapter {
             unsignedPatterns.addAll(patterns);
         }
 
-        boolean requireAll = false;
+        boolean requireAll = settings.verifyAllSignatures();
         UntrustedPolicy untrustedPolicy = "fail".equals(settings.onUntrusted())
                 ? UntrustedPolicy.FAIL
                 : UntrustedPolicy.WARN;

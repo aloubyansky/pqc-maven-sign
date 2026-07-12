@@ -1,9 +1,7 @@
 package io.github.aloubyansky.sigmund.plugin;
 
 import io.github.aloubyansky.sigmund.core.DiscoveryConfig;
-import io.github.aloubyansky.sigmund.core.GpgRunner;
 import io.github.aloubyansky.sigmund.core.Sigmund;
-import io.github.aloubyansky.sigmund.core.SqRunner;
 import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -162,15 +160,16 @@ abstract class AbstractDependencyMojo extends AbstractMojo {
     }
 
     protected Sigmund buildSigmund(TrustConfig.Settings settings) throws MojoExecutionException {
-        Sigmund.Builder builder = Sigmund.builder()
-                .addTool(new GpgRunner());
-        if (SqRunner.isToolAvailable()) {
-            builder.addTool(new SqRunner(SequoiaHomeResolver.resolve(sqHome)));
-        }
-        builder.discoveryConfig(new DiscoveryConfig(
-                settings.fetchSignerInfo(), false,
-                settings.keyservers(), Map.of()));
-        return builder.build();
+        return Sigmund.builder()
+                .discover()
+                .discoveryConfig(new DiscoveryConfig(
+                        settings.fetchSignerInfo(), false,
+                        settings.keyservers(), sqHomeOverrides()))
+                .build();
+    }
+
+    protected Map<String, Map<String, String>> sqHomeOverrides() {
+        return SequoiaHomeResolver.toolOverrides(sqHome);
     }
 
     protected SignatureInspector buildInspector(TrustConfig.Settings settings)

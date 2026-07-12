@@ -102,6 +102,40 @@ class SignerTest {
         }
     }
 
+    @Nested
+    class FailureCleanup {
+
+        @Test
+        void cleansTempFilesWhenToolThrows() throws IOException {
+            var format = mockFormat("openpgp", ".asc", false);
+            var goodTool = mockSigningTool("gpg", format, "RSA");
+            var failingTool = failingSigningTool("sq", format);
+            var signer = new Signer(List.of(goodTool, failingTool));
+
+            Path artifact = createArtifact("test.jar");
+
+            assertThrows(RuntimeException.class, () -> signer.sign(artifact, tempDir));
+
+            long tempFiles = Files.list(tempDir).filter(p -> p.toString().contains("sig-")).count();
+            assertEquals(0, tempFiles, "temp files should be cleaned up after failure");
+        }
+
+        @Test
+        void cleansTempFilesWhenCombineThrows() throws IOException {
+            var format = mockFormat("openpgp", ".asc", true, true);
+            var tool1 = mockSigningTool("gpg", format, "RSA");
+            var tool2 = mockSigningTool("sq", format, "PQC");
+            var signer = new Signer(List.of(tool1, tool2));
+
+            Path artifact = createArtifact("test.jar");
+
+            assertThrows(RuntimeException.class, () -> signer.sign(artifact, tempDir));
+
+            long tempFiles = Files.list(tempDir).filter(p -> p.toString().contains("sig-")).count();
+            assertEquals(0, tempFiles, "temp files should be cleaned up after combine failure");
+        }
+    }
+
     // --- Helpers ---
 
     private Path createArtifact(String name) throws IOException {
@@ -111,6 +145,11 @@ class SignerTest {
     }
 
     private static SignatureFormat mockFormat(String name, String ext, boolean combinable) {
+        return mockFormat(name, ext, combinable, false);
+    }
+
+    private static SignatureFormat mockFormat(String name, String ext, boolean combinable,
+            boolean failCombine) {
         return new SignatureFormat() {
             @Override
             public String name() {
@@ -139,6 +178,9 @@ class SignerTest {
 
             @Override
             public void combine(List<Path> sigs, Path output) {
+                if (failCombine) {
+                    throw new RuntimeException("combine failed");
+                }
                 try {
                     var sb = new StringBuilder();
                     for (Path s : sigs) {
@@ -148,6 +190,55 @@ class SignerTest {
                 } catch (IOException e) {
                     throw new RuntimeException(e);
                 }
+            }
+        };
+    }
+
+    private static SignatureTool failingSigningTool(String name, SignatureFormat format) {
+        return new SignatureTool() {
+            @Override
+            public String name() {
+                return name;
+            }
+
+            @Override
+            public boolean isAvailable() {
+                return true;
+            }
+
+            @Override
+            public boolean canSign() {
+                return true;
+            }
+
+            @Override
+            public SignatureFormat signatureFormat() {
+                return format;
+            }
+
+            @Override
+            public Set<String> supportedCredentialTypes() {
+                return Set.of("openpgp4");
+            }
+
+            @Override
+            public boolean canVerify(VerificationUnit u) {
+                return false;
+            }
+
+            @Override
+            public SignResult sign(Path a, Path o) {
+                throw new RuntimeException("signing failed");
+            }
+
+            @Override
+            public VerifyResult verify(Path a, VerificationUnit u) {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public List<Credential> extractCredentials(VerifyResult r) {
+                return List.of();
             }
         };
     }

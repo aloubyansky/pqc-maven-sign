@@ -1,5 +1,6 @@
 package io.github.aloubyansky.sigmund.plugin;
 
+import io.github.aloubyansky.sigmund.core.Algorithms;
 import io.github.aloubyansky.sigmund.core.ArtifactIdentity;
 import io.github.aloubyansky.sigmund.core.AssessmentRequest;
 import io.github.aloubyansky.sigmund.core.Credential;
@@ -75,11 +76,10 @@ public class VerifyMojo extends AbstractDependencyMojo {
             addPomArtifacts(toAssess);
         }
 
-        ArtifactFileResolver resolver = new ArtifactFileResolver(
-                repoSystem, repoSession, remoteRepos, getLog());
+        ArtifactFileResolver resolver = new ArtifactFileResolver(repoSystem, repoSession, remoteRepos, getLog());
 
-        List<AssessmentRequest> requests = new ArrayList<>();
-        List<ArtifactCoords> assessedCoords = new ArrayList<>();
+        List<AssessmentRequest> requests = new ArrayList<>(toAssess.size());
+        List<ArtifactCoords> assessedCoords = new ArrayList<>(toAssess.size());
 
         for (ArtifactCoords coords : toAssess) {
             ArtifactFileResolver.ResolvedFiles resolved = resolver.resolve(coords);
@@ -94,8 +94,7 @@ public class VerifyMojo extends AbstractDependencyMojo {
 
         List<TrustResult> results = verifier.assessAll(requests);
 
-        Map<Integer, List<EnrichedSignerInfo>> enriched = enrichResults(
-                results, requests, sigmund);
+        Map<Integer, List<EnrichedSignerInfo>> enriched = enrichResults(results, requests, sigmund);
 
         boolean failPolicy = "fail".equals(settings.onUntrusted());
         boolean verifyAll = settings.verifyAllSignatures();
@@ -105,6 +104,12 @@ public class VerifyMojo extends AbstractDependencyMojo {
         failIfNeeded(results, assessedCoords, failPolicy, verifyAll);
     }
 
+    /**
+     * Adds POM artifacts for each unique GAV in the list, so their signatures
+     * are also verified when {@code verifyPomFiles} is enabled.
+     *
+     * @param artifacts the mutable list to append POM coordinates to
+     */
     void addPomArtifacts(List<ArtifactCoords> artifacts) {
         Set<String> seen = new LinkedHashSet<>();
         List<ArtifactCoords> poms = new ArrayList<>();
@@ -121,14 +126,17 @@ public class VerifyMojo extends AbstractDependencyMojo {
         artifacts.addAll(poms);
     }
 
-    // ── Signer info enrichment ───────────────────────────
-
     record EnrichedSignerInfo(String signerDisplayName, String keyLine, boolean fallback) {
         EnrichedSignerInfo(String signerDisplayName, String keyLine) {
             this(signerDisplayName, keyLine, false);
         }
     }
 
+    /**
+     * Returns {@code true} if the result lacks signer details that raw
+     * signature verification could provide (NOT_CONFIGURED or UNTRUSTED
+     * with no unmatched evidence to display).
+     */
     private boolean needsEnrichment(TrustResult result) {
         if (result.verdict() == TrustVerdict.NOT_CONFIGURED) {
             return true;
@@ -140,6 +148,12 @@ public class VerifyMojo extends AbstractDependencyMojo {
         return false;
     }
 
+    /**
+     * Re-verifies signatures for artifacts whose trust result lacks signer
+     * details, extracting key/algorithm info for display.
+     *
+     * @return map from result index to the extracted signer info list
+     */
     private Map<Integer, List<EnrichedSignerInfo>> enrichResults(
             List<TrustResult> results, List<AssessmentRequest> requests,
             Sigmund sigmund) {
@@ -181,9 +195,14 @@ public class VerifyMojo extends AbstractDependencyMojo {
         return enriched;
     }
 
+    /**
+     * Extracts display-ready signer info from a {@link VerifyResult}.
+     *
+     * @return the enriched info, or {@code null} if the result has no useful identity data
+     */
     private EnrichedSignerInfo extractSignerInfo(VerifyResult vr) {
         if (vr instanceof OpenPgpVerifyResult opvr) {
-            String label = opvr.version() < 6 ? "GPG" : "PQC";
+            String label = Algorithms.versionLabel(opvr.version());
             String keyId = opvr.fingerprint() != null
                     ? opvr.fingerprint()
                     : (opvr.keyId() != null ? opvr.keyId() : "unknown");
@@ -196,8 +215,10 @@ public class VerifyMojo extends AbstractDependencyMojo {
         return null;
     }
 
-    // ── Config loading ──────────────────────────────────────
-
+    /**
+     * Loads and validates the trust config file, failing with a clear message
+     * if not found.
+     */
     private TrustConfig loadConfig() throws MojoExecutionException {
         TrustConfig config = loadTrustConfig();
         if (config == null) {
@@ -214,6 +235,10 @@ public class VerifyMojo extends AbstractDependencyMojo {
         return config;
     }
 
+    /**
+     * Merges file-based settings with Mojo parameter overrides ({@code onUntrusted},
+     * {@code verifyAllSignatures}).
+     */
     private TrustConfig.Settings mergeSettings(TrustConfig.Settings fileSettings)
             throws MojoExecutionException {
         TrustConfig.Settings resolved = resolveSettings(fileSettings);
@@ -233,8 +258,10 @@ public class VerifyMojo extends AbstractDependencyMojo {
                 effectiveVerifyAll, resolved.fetchSignerInfo());
     }
 
-    // ── Reporting ───────────────────────────────────────────
-
+    /**
+     * Identifies untrusted signer keys that are trusted for other artifacts,
+     * so the report can annotate them as "(trusted for other artifacts)".
+     */
     private Set<String> buildTrustedAnnotations(
             Map<String, List<String>> untrustedBySigner,
             List<TrustResult> results,
@@ -249,6 +276,10 @@ public class VerifyMojo extends AbstractDependencyMojo {
         return annotated;
     }
 
+    /**
+     * Checks whether the given untrusted key matches any signer that is
+     * trusted for at least one other artifact in this build.
+     */
     private boolean isKnownToTrustedSigner(String untrustedKey,
             List<TrustResult> results,
             Map<Integer, List<EnrichedSignerInfo>> enriched,
@@ -293,6 +324,10 @@ public class VerifyMojo extends AbstractDependencyMojo {
         return false;
     }
 
+    /**
+     * Classifies trust results and prints the grouped console report:
+     * trusted signers, untrusted/unsigned/not-configured sections, and summary.
+     */
     private void reportResults(List<TrustResult> results, List<ArtifactCoords> coords,
             Map<Integer, List<EnrichedSignerInfo>> enriched, List<String> skippedCoords,
             boolean failPolicy, boolean verifyAll) {
@@ -450,6 +485,12 @@ public class VerifyMojo extends AbstractDependencyMojo {
         getLog().info(summary.toString());
     }
 
+    /**
+     * Prints the trusted signers section, grouped by signer with key lines
+     * and artifact coordinates.
+     *
+     * @return updated {@code firstGroup} flag
+     */
     private boolean reportTrusted(Map<String, List<String>> trustedBySigner,
             Map<String, String> displayNames, Map<String, Set<String>> trustedKeyLines,
             boolean firstGroup) {
@@ -473,6 +514,11 @@ public class VerifyMojo extends AbstractDependencyMojo {
         return firstGroup;
     }
 
+    /**
+     * Prints the untrusted/unsigned/not-configured/verification-failed sections.
+     *
+     * @return updated {@code firstGroup} flag
+     */
     private boolean reportUntrusted(
             Map<String, List<String>> untrustedBySigner,
             List<String> unsignedCoords,
@@ -584,6 +630,10 @@ public class VerifyMojo extends AbstractDependencyMojo {
         return firstGroup;
     }
 
+    /**
+     * Prints the trusted-unsigned section (artifacts allowed to be unsigned
+     * by the trust policy).
+     */
     private void reportSkipped(List<String> skippedCoords, boolean firstGroup) {
         if (skippedCoords.isEmpty()) {
             return;
@@ -595,6 +645,10 @@ public class VerifyMojo extends AbstractDependencyMojo {
         skippedCoords.stream().sorted().forEach(c -> getLog().info("     " + c));
     }
 
+    /**
+     * Throws {@link MojoFailureException} if the fail policy is active and any
+     * artifact has a non-trusted verdict.
+     */
     private void failIfNeeded(List<TrustResult> results, List<ArtifactCoords> coords,
             boolean failPolicy, boolean verifyAll) throws MojoFailureException {
         if (!failPolicy) {
@@ -625,11 +679,14 @@ public class VerifyMojo extends AbstractDependencyMojo {
         }
     }
 
+    /**
+     * Formats a credential as a display line (e.g., {@code "PGP4: ABCD1234..."}).
+     */
     private static String formatCredentialKeyLine(Credential cred) {
         if (cred instanceof FingerprintCredential fp) {
             String label = switch (fp.type()) {
-                case Credential.TYPE_OPENPGP_V4 -> "GPG";
-                case Credential.TYPE_OPENPGP_V6 -> "PQC";
+                case Credential.TYPE_OPENPGP_V4 -> Algorithms.versionLabel(4);
+                case Credential.TYPE_OPENPGP_V6 -> Algorithms.versionLabel(6);
                 default -> fp.type();
             };
             return label + ": " + fp.fingerprint();
@@ -637,7 +694,6 @@ public class VerifyMojo extends AbstractDependencyMojo {
         return cred.type() + ": " + cred.displayName();
     }
 
-    private static final int LOG_INFO = 0;
     private static final int LOG_WARN = 1;
     private static final int LOG_ERROR = 2;
 

@@ -258,7 +258,6 @@ public class Sigmund {
     public static class Builder {
 
         private final List<SignatureTool> tools = new ArrayList<>(2);
-        private final List<String> explicitToolNames = new ArrayList<>(2);
         private final List<EvidenceProvider> extraProviders = new ArrayList<>();
         private DiscoveryConfig discoveryConfig = DiscoveryConfig.DEFAULT;
         private SigningConfig signingConfig;
@@ -308,14 +307,58 @@ public class Sigmund {
          *
          * @param tool the tool to add
          * @return this builder
+         * @throws SigmundException if the tool is not available
          */
         public Builder addTool(SignatureTool tool) {
+            if (!tool.isAvailable()) {
+                throw new SigmundException(
+                        "Tool '" + tool.name() + "' is not available");
+            }
             String name = tool.name();
             tools.removeIf(t -> t.name().equals(name));
-            explicitToolNames.remove(name);
             tools.add(tool);
-            explicitToolNames.add(name);
             return this;
+        }
+
+        /**
+         * Creates and adds a verify-only tool using the registered factory.
+         *
+         * @param toolName the tool name (e.g., {@code "gpg"}, {@code "sq"})
+         * @param settings tool-specific configuration settings
+         * @return this builder
+         * @throws SigmundException if no factory is registered for the tool name,
+         *         or the tool is not available
+         */
+        public Builder addTool(String toolName, Map<String, String> settings) {
+            return addTool(createFromFactory(toolName, false, settings));
+        }
+
+        /**
+         * Creates and adds a signing-capable tool using the registered factory.
+         * <p>
+         * The factory handles defaults; only provide settings the user has explicitly
+         * configured (e.g., {@code "key-name"}, {@code "signing-fingerprint"}, {@code "home"}).
+         *
+         * @param toolName the tool name (e.g., {@code "gpg"}, {@code "sq"})
+         * @param settings tool-specific configuration settings
+         * @return this builder
+         * @throws SigmundException if no factory is registered for the tool name,
+         *         or the tool is not available
+         */
+        public Builder addSigningTool(String toolName, Map<String, String> settings) {
+            return addTool(createFromFactory(toolName, true, settings));
+        }
+
+        private SignatureTool createFromFactory(String toolName, boolean signing,
+                Map<String, String> settings) {
+            for (SignatureToolFactory factory : FACTORIES) {
+                if (factory.toolName().equals(toolName)) {
+                    return signing
+                            ? factory.create(null, settings)
+                            : factory.createVerifyOnly(settings);
+                }
+            }
+            throw new SigmundException("Unknown tool: " + toolName);
         }
 
         /**
@@ -332,28 +375,19 @@ public class Sigmund {
         /**
          * Builds the {@link Sigmund} instance.
          * <p>
-         * Explicitly added tools that are not available cause a {@link SigmundException}.
-         * Discovered tools are silently skipped if unavailable.
+         * All tools in the builder are already verified as available — {@link #addTool}
+         * checks at add time, and {@link #discoverTools()} only adds available tools.
          *
          * @return the configured Sigmund instance
-         * @throws SigmundException if an explicitly added tool is not available
+         * @throws SigmundException if no tools are available
          */
         public Sigmund build() {
             if (discovered) {
                 discoverTools();
             }
 
-            List<SignatureTool> available = new ArrayList<>(tools.size());
             Map<String, List<SignatureTool>> toolsByFormat = new LinkedHashMap<>(2);
             for (SignatureTool tool : tools) {
-                if (!tool.isAvailable()) {
-                    if (explicitToolNames.contains(tool.name())) {
-                        throw new SigmundException(
-                                "Tool '" + tool.name() + "' was explicitly added but is not available");
-                    }
-                    continue;
-                }
-                available.add(tool);
                 toolsByFormat.computeIfAbsent(tool.signatureFormat().name(), k -> new ArrayList<>(2))
                         .add(tool);
             }
@@ -371,16 +405,33 @@ public class Sigmund {
                 }
             }
 
-            return new Sigmund(List.copyOf(available), List.copyOf(formats),
+            return new Sigmund(List.copyOf(tools), List.copyOf(formats),
                     List.copyOf(providers), signingConfig);
         }
 
+        private static final List<SignatureToolFactory> FACTORIES = List.of(
+                new GpgToolFactory(), new SqToolFactory());
+
         private void discoverTools() {
-            if (findByName("gpg") == null && GpgRunner.isToolAvailable()) {
-                tools.add(new GpgRunner());
-            }
-            if (findByName("sq") == null && SqRunner.isToolAvailable()) {
-                tools.add(new SqRunner(SqRunner.defaultHome()));
+            Map<String, Map<String, String>> toolSettings = discoveryConfig != null
+                    ? discoveryConfig.tools()
+                    : Map.of();
+            for (SignatureToolFactory factory : FACTORIES) {
+                if (findByName(factory.toolName()) != null) {
+                    continue;
+                }
+                Map<String, String> settings = toolSettings.getOrDefault(
+                        factory.toolName(), Map.of());
+                try {
+                    SignatureTool tool = factory.createVerifyOnly(settings);
+                    if (tool.isAvailable()) {
+                        tools.add(tool);
+                    }
+                } catch (SigmundException e) {
+                    System.getLogger(Sigmund.class.getName())
+                            .log(System.Logger.Level.DEBUG,
+                                    "Skipping tool '" + factory.toolName() + "': " + e.getMessage());
+                }
             }
         }
 

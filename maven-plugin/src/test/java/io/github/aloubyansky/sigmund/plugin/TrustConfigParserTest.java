@@ -86,8 +86,8 @@ class TrustConfigParserTest {
             assertNull(signer.name());
             assertEquals(1, signer.members().size());
             var member = signer.members().get(0);
-            assertNull(member.gpg());
-            assertNull(member.pqc());
+            assertNull(member.pgp4());
+            assertNull(member.pgp6());
             assertEquals("alice@example.com", member.email());
         }
 
@@ -96,7 +96,7 @@ class TrustConfigParserTest {
             var config = parse("""
                     signers:
                       jane:
-                        gpg: "4AEE18F83AFDEB23468B2E5A2D7BAF3C1E9F5A12"
+                        pgp4: "4AEE18F83AFDEB23468B2E5A2D7BAF3C1E9F5A12"
                         email: "jane@example.com"
                     trust:
                       com.example: jane
@@ -106,9 +106,9 @@ class TrustConfigParserTest {
             assertNull(signer.name());
             assertEquals(1, signer.members().size());
             var member = signer.members().get(0);
-            assertEquals("4AEE18F83AFDEB23468B2E5A2D7BAF3C1E9F5A12", member.gpg());
+            assertEquals("4AEE18F83AFDEB23468B2E5A2D7BAF3C1E9F5A12", member.pgp4());
             assertEquals("jane@example.com", member.email());
-            assertNull(member.pqc());
+            assertNull(member.pgp6());
         }
 
         @Test
@@ -116,13 +116,13 @@ class TrustConfigParserTest {
             var config = parse("""
                     signers:
                       pqc-signer:
-                        pqc: "A1B2C3D4E5F6A7B8C9D0E1F2A3B4C5D6E7F8A9B0"
+                        pgp6: "A1B2C3D4E5F6A7B8C9D0E1F2A3B4C5D6E7F8A9B0"
                     trust:
                       com.example: pqc-signer
                     """);
             var member = config.signers().get("pqc-signer").members().get(0);
-            assertNull(member.gpg());
-            assertEquals("A1B2C3D4E5F6A7B8C9D0E1F2A3B4C5D6E7F8A9B0", member.pqc());
+            assertNull(member.pgp4());
+            assertEquals("A1B2C3D4E5F6A7B8C9D0E1F2A3B4C5D6E7F8A9B0", member.pgp6());
             assertNull(member.email());
         }
 
@@ -136,8 +136,8 @@ class TrustConfigParserTest {
                       com.google.guava: guava-team
                     """);
             var member = config.signers().get("guava-team").members().get(0);
-            assertNull(member.gpg());
-            assertNull(member.pqc());
+            assertNull(member.pgp4());
+            assertNull(member.pgp6());
             assertEquals("opensource@google.com", member.email());
         }
 
@@ -148,9 +148,9 @@ class TrustConfigParserTest {
                       apache:
                         name: "Apache Software Foundation"
                         members:
-                          - gpg: "4AEE18F83AFDEB23468B2E5A2D7BAF3C1E9F5A12"
+                          - pgp4: "4AEE18F83AFDEB23468B2E5A2D7BAF3C1E9F5A12"
                             email: "dev@maven.apache.org"
-                          - gpg: "BBE7232D7991050B54C8EA0ADC08637CA615D22C"
+                          - pgp4: "BBE7232D7991050B54C8EA0ADC08637CA615D22C"
                     trust:
                       org.apache.*: apache
                     """);
@@ -159,11 +159,11 @@ class TrustConfigParserTest {
             assertEquals(2, signer.members().size());
 
             var m0 = signer.members().get(0);
-            assertEquals("4AEE18F83AFDEB23468B2E5A2D7BAF3C1E9F5A12", m0.gpg());
+            assertEquals("4AEE18F83AFDEB23468B2E5A2D7BAF3C1E9F5A12", m0.pgp4());
             assertEquals("dev@maven.apache.org", m0.email());
 
             var m1 = signer.members().get(1);
-            assertEquals("BBE7232D7991050B54C8EA0ADC08637CA615D22C", m1.gpg());
+            assertEquals("BBE7232D7991050B54C8EA0ADC08637CA615D22C", m1.pgp4());
             assertNull(m1.email());
         }
 
@@ -347,11 +347,11 @@ class TrustConfigParserTest {
                       apache:
                         name: "Apache Software Foundation"
                         members:
-                          - gpg: "4AEE18F83AFDEB23468B2E5A2D7BAF3C1E9F5A12"
+                          - pgp4: "4AEE18F83AFDEB23468B2E5A2D7BAF3C1E9F5A12"
                             email: "dev@maven.apache.org"
-                          - gpg: "BBE7232D7991050B54C8EA0ADC08637CA615D22C"
+                          - pgp4: "BBE7232D7991050B54C8EA0ADC08637CA615D22C"
                       jane:
-                        gpg: "DEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEF"
+                        pgp4: "DEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEF"
                         email: "jane@example.com"
                       jackson-dev: "tatu@fasterxml.com"
 
@@ -382,7 +382,7 @@ class TrustConfigParserTest {
             assertNull(jane.name());
             assertEquals(1, jane.members().size());
             assertEquals("DEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEF",
-                    jane.members().get(0).gpg());
+                    jane.members().get(0).pgp4());
 
             var jackson = config.signers().get("jackson-dev");
             assertEquals("tatu@fasterxml.com",
@@ -410,15 +410,15 @@ class TrustConfigParserTest {
             var config = parse("""
                     signers:
                       full:
-                        gpg: "4AEE18F83AFDEB23468B2E5A2D7BAF3C1E9F5A12"
-                        pqc: "A1B2C3D4E5F6A7B8C9D0E1F2A3B4C5D6E7F8A9B0"
+                        pgp4: "4AEE18F83AFDEB23468B2E5A2D7BAF3C1E9F5A12"
+                        pgp6: "A1B2C3D4E5F6A7B8C9D0E1F2A3B4C5D6E7F8A9B0"
                         email: "full@example.com"
                     trust:
                       com.example: full
                     """);
             var member = config.signers().get("full").members().get(0);
-            assertNotNull(member.gpg());
-            assertNotNull(member.pqc());
+            assertNotNull(member.pgp4());
+            assertNotNull(member.pgp6());
             assertNotNull(member.email());
         }
 

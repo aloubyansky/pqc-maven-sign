@@ -254,11 +254,11 @@ artifact.jar + artifact.jar.asc
     +-- extract all armored blocks
     |
     +-- for each block:
-    |     version <= 4 --> gpg --verify ---------> SignatureInfo (PASS/FAIL/NO_KEY)
-    |     version  5+  --> sq verify (cert store) -> SignatureInfo (PASS/FAIL/NO_KEY/SKIPPED)
+    |     version <= 4 --> gpg --verify ---------> VerifyResult (PASS/FAIL/NO_KEY)
+    |     version  5+  --> sq verify (cert store) -> VerifyResult (PASS/FAIL/NO_KEY/SKIPPED)
     |     unparseable  --> FAIL
     |
-    +-- VerificationReport (all results)
+    +-- SignatureVerificationReport (all results)
 ```
 
 Each armored block is parsed into a `VerificationUnit` and verified independently by the appropriate `SignatureTool`, routed via `canVerify()` based on the OpenPGP signature version.
@@ -441,13 +441,13 @@ signers:
   apache:
     name: "Apache Software Foundation"
     members:
-      - gpg: "4AEE18F83AFDEB23468B2E5A2D7BAF3C1E9F5A12"
+      - pgp4: "4AEE18F83AFDEB23468B2E5A2D7BAF3C1E9F5A12"
         email: "dev@maven.apache.org"
-      - gpg: "BBE7232D7991050B54C8EA0ADC08637CA615D22C"
+      - pgp4: "BBE7232D7991050B54C8EA0ADC08637CA615D22C"
 
   # Short form: single-key signer
   jane:
-    gpg: "DEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEF"
+    pgp4: "DEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEF"
     email: "jane@example.com"
 
   # Minimal form: email only
@@ -468,7 +468,7 @@ unsigned:
   - com.internal.*
 ```
 
-**Signers** define trusted identities in three forms: full (organization with multiple members), short (single key), or minimal (email string only). Each member can specify a GPG fingerprint (`gpg`), PQC fingerprint (`pqc`), and/or email address (`email`). Fingerprints are matched first; email is used as a fallback.
+**Signers** define trusted identities in three forms: full (organization with multiple members), short (single key), or minimal (email string only). Each member can specify a PGP4 fingerprint (`pgp4`), PGP6 fingerprint (`pgp6`), and/or email address (`email`). Fingerprints are matched first; email is used as a fallback.
 
 **Artifacts** define named groups of coordinate patterns, referenced by name in `trust`.
 
