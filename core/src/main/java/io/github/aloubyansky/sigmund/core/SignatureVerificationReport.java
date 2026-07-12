@@ -5,7 +5,7 @@ import java.util.List;
 /**
  * Hierarchical verification report for direct signature verification (without trust policy).
  * <p>
- * Aggregates per-file sub-reports. Callers can check the overall outcome or drill
+ * Aggregates per-file sub-reports. Callers can check the overall verdict or drill
  * into each file's results.
  */
 public class SignatureVerificationReport {
@@ -22,11 +22,11 @@ public class SignatureVerificationReport {
     }
 
     /**
-     * Returns the aggregate verification outcome.
+     * Returns the aggregate verification verdict.
      *
-     * @return the overall outcome
+     * @return the overall verdict
      */
-    public OverallVerdict outcome() {
+    public ReportVerdict verdict() {
         boolean anyPass = false;
         boolean anyFail = false;
         boolean anySkip = false;
@@ -42,15 +42,15 @@ public class SignatureVerificationReport {
             }
         }
         if (!anyPass && !anyFail && !anySkip) {
-            return OverallVerdict.NONE_PASSED;
+            return ReportVerdict.NONE_PASSED;
         }
         if (anyPass && !anyFail) {
-            return anySkip ? OverallVerdict.PASS_WITH_SKIPS : OverallVerdict.ALL_PASS;
+            return anySkip ? ReportVerdict.PASS_WITH_SKIPS : ReportVerdict.ALL_PASS;
         }
         if (anyPass) {
-            return OverallVerdict.PASS_WITH_FAILURES;
+            return ReportVerdict.PASS_WITH_FAILURES;
         }
-        return OverallVerdict.NONE_PASSED;
+        return ReportVerdict.NONE_PASSED;
     }
 
     /**
@@ -65,20 +65,20 @@ public class SignatureVerificationReport {
     /**
      * Strict pass: all signatures must be valid.
      *
-     * @return {@code true} if outcome is {@link OverallVerdict#ALL_PASS}
+     * @return {@code true} if verdict is {@link ReportVerdict#ALL_PASS}
      */
     public boolean isPass() {
-        return outcome() == OverallVerdict.ALL_PASS;
+        return verdict() == ReportVerdict.ALL_PASS;
     }
 
     /**
      * Lenient pass: at least one signature valid, none failed.
      *
-     * @return {@code true} if outcome is ALL_PASS or PASS_WITH_SKIPS
+     * @return {@code true} if verdict is ALL_PASS or PASS_WITH_SKIPS
      */
     public boolean isLenientPass() {
-        var o = outcome();
-        return o == OverallVerdict.ALL_PASS || o == OverallVerdict.PASS_WITH_SKIPS;
+        var o = verdict();
+        return o == ReportVerdict.ALL_PASS || o == ReportVerdict.PASS_WITH_SKIPS;
     }
 
     /**
@@ -97,7 +97,7 @@ public class SignatureVerificationReport {
                 sb.append('\n');
             }
         }
-        sb.append("  Overall: ").append(outcome());
+        sb.append("  Overall: ").append(verdict());
         return sb.toString();
     }
 

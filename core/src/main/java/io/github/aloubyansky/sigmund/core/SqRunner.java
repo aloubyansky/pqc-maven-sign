@@ -61,7 +61,6 @@ import java.util.regex.Pattern;
 public class SqRunner implements SignatureTool, KeyGenerator, CertExporter {
 
     public static final String DEFAULT_CIPHER_SUITE = "mldsa87-ed448";
-    public static final String DEFAULT_PQC_ALGORITHM = "ML-DSA-87+Ed448";
 
     private static final Set<String> SUPPORTED_CREDENTIAL_TYPES = Set.of(Credential.TYPE_OPENPGP_V4,
             Credential.TYPE_OPENPGP_V6);

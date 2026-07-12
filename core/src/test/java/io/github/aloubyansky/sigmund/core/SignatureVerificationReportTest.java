@@ -15,7 +15,7 @@ class SignatureVerificationReportTest {
         @Test
         void allPass() {
             var report = reportWith(passResult(), passResult());
-            assertEquals(OverallVerdict.ALL_PASS, report.outcome());
+            assertEquals(ReportVerdict.ALL_PASS, report.verdict());
             assertTrue(report.isPass());
             assertTrue(report.isLenientPass());
         }
@@ -23,7 +23,7 @@ class SignatureVerificationReportTest {
         @Test
         void passWithSkipped() {
             var report = reportWith(passResult(), skippedResult());
-            assertEquals(OverallVerdict.PASS_WITH_SKIPS, report.outcome());
+            assertEquals(ReportVerdict.PASS_WITH_SKIPS, report.verdict());
             assertFalse(report.isPass());
             assertTrue(report.isLenientPass());
         }
@@ -31,7 +31,7 @@ class SignatureVerificationReportTest {
         @Test
         void passWithNoKey() {
             var report = reportWith(passResult(), noKeyResult());
-            assertEquals(OverallVerdict.PASS_WITH_SKIPS, report.outcome());
+            assertEquals(ReportVerdict.PASS_WITH_SKIPS, report.verdict());
             assertFalse(report.isPass());
             assertTrue(report.isLenientPass());
         }
@@ -39,7 +39,7 @@ class SignatureVerificationReportTest {
         @Test
         void passWithFailures() {
             var report = reportWith(passResult(), failResult());
-            assertEquals(OverallVerdict.PASS_WITH_FAILURES, report.outcome());
+            assertEquals(ReportVerdict.PASS_WITH_FAILURES, report.verdict());
             assertFalse(report.isPass());
             assertFalse(report.isLenientPass());
         }
@@ -47,7 +47,7 @@ class SignatureVerificationReportTest {
         @Test
         void allFail() {
             var report = reportWith(failResult(), failResult());
-            assertEquals(OverallVerdict.NONE_PASSED, report.outcome());
+            assertEquals(ReportVerdict.NONE_PASSED, report.verdict());
             assertFalse(report.isPass());
             assertFalse(report.isLenientPass());
         }
@@ -55,13 +55,13 @@ class SignatureVerificationReportTest {
         @Test
         void allSkipped() {
             var report = reportWith(skippedResult());
-            assertEquals(OverallVerdict.NONE_PASSED, report.outcome());
+            assertEquals(ReportVerdict.NONE_PASSED, report.verdict());
         }
 
         @Test
         void emptyReport() {
             var report = new SignatureVerificationReport(List.of());
-            assertEquals(OverallVerdict.NONE_PASSED, report.outcome());
+            assertEquals(ReportVerdict.NONE_PASSED, report.verdict());
             assertFalse(report.isPass());
             assertFalse(report.isLenientPass());
         }
@@ -70,7 +70,7 @@ class SignatureVerificationReportTest {
         void emptyFileReport() {
             var report = new SignatureVerificationReport(
                     List.of(new FileSignatureReport(Path.of("test.asc"), "openpgp", List.of())));
-            assertEquals(OverallVerdict.NONE_PASSED, report.outcome());
+            assertEquals(ReportVerdict.NONE_PASSED, report.verdict());
         }
     }
 
@@ -82,7 +82,7 @@ class SignatureVerificationReportTest {
             var file1 = new FileSignatureReport(Path.of("a.asc"), "openpgp", List.of(passResult()));
             var file2 = new FileSignatureReport(Path.of("b.asc"), "openpgp", List.of(failResult()));
             var report = new SignatureVerificationReport(List.of(file1, file2));
-            assertEquals(OverallVerdict.PASS_WITH_FAILURES, report.outcome());
+            assertEquals(ReportVerdict.PASS_WITH_FAILURES, report.verdict());
         }
 
         @Test

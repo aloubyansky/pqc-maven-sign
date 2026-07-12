@@ -1,11 +1,11 @@
 package io.github.aloubyansky.sigmund.core;
 
 /**
- * Aggregate outcome of verifying all signatures in a report.
+ * Aggregate verdict for all signatures in a report.
  *
- * @see SignatureVerificationReport#outcome()
+ * @see SignatureVerificationReport#verdict()
  */
-public enum OverallVerdict {
+public enum ReportVerdict {
 
     /** Every signature in the report has {@link Verdict#PASS}. */
     ALL_PASS,

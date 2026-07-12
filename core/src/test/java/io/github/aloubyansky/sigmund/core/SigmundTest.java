@@ -119,7 +119,7 @@ class SigmundTest {
 
             SignatureVerificationReport report = sigmund.verify(artifact, sigFile);
 
-            assertEquals(OverallVerdict.ALL_PASS, report.outcome());
+            assertEquals(ReportVerdict.ALL_PASS, report.verdict());
             assertEquals(1, report.files().size());
             assertEquals("openpgp", report.files().get(0).format());
         }
@@ -135,7 +135,7 @@ class SigmundTest {
 
             SignatureVerificationReport report = sigmund.verify(artifact, sigFile);
 
-            assertEquals(OverallVerdict.NONE_PASSED, report.outcome());
+            assertEquals(ReportVerdict.NONE_PASSED, report.verdict());
         }
 
         @Test
@@ -153,7 +153,7 @@ class SigmundTest {
             SignatureVerificationReport report = sigmund.verifyAll(artifact, List.of(sig1, sig2));
 
             assertEquals(2, report.files().size());
-            assertEquals(OverallVerdict.ALL_PASS, report.outcome());
+            assertEquals(ReportVerdict.ALL_PASS, report.verdict());
         }
     }
 

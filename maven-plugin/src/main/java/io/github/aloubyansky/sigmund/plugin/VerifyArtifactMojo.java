@@ -106,7 +106,7 @@ public class VerifyArtifactMojo extends AbstractMojo {
     private String failureMessage(SignatureVerificationReport report) {
         boolean hasResults = report.files().stream()
                 .anyMatch(f -> !f.results().isEmpty());
-        return switch (report.outcome()) {
+        return switch (report.verdict()) {
             case NONE_PASSED -> !hasResults
                     ? "No signatures found in signature file"
                     : "No signatures could be verified - check that the required keys are available";

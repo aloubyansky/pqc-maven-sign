@@ -13,5 +13,8 @@ public final class UnverifiedResult extends VerifyResult {
 
     public UnverifiedResult(Verdict verdict) {
         super(verdict, null, null);
+        if (verdict == Verdict.PASS) {
+            throw new IllegalArgumentException("UnverifiedResult cannot have verdict PASS");
+        }
     }
 }
